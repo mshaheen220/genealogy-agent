@@ -5,82 +5,108 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Genealogy Agent</title>
   <script src="/socket.io/socket.io.js"></script>
-  <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 50px; }
-    button { padding: 15px 30px; font-size: 18px; cursor: pointer; margin: 10px; border-radius: 8px; border: 1px solid #ccc; }
-    #status { margin-top: 20px; font-weight: bold; color: gray; }
-    #chat { max-width: 600px; margin: 30px auto; text-align: left; background: #f9f9f9; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: 400px; overflow-y: auto; }
-    .msg { margin-bottom: 15px; line-height: 1.4; }
-    .user { color: #0056b3; font-weight: bold; }
-    .ai { color: #2d862d; font-weight: bold; }
-  </style>
+  <link rel="stylesheet" href="/styles/main.css">
 </head>
 <body>
-  <h1>🎙️ Live Genealogy Interview</h1>
-  <button id="startBtn">Start Listening</button>
-  <button id="stopBtn" disabled>Stop Listening</button>
-  <div id="status">Ready...</div>
-  <div id="chat"></div>
+
+  <header class="app-header">
+    <div class="header-left">
+      <span class="header-logo">🎙️</span>
+      <div class="header-branding">
+        <span class="brand-title">GENEALOGY</span>
+        <span class="brand-subtitle">VOICE INSIGHTS</span>
+      </div>
+    </div>
+    <div class="header-right"></div>
+  </header>
+
+  <main class="app-container">
+    
+    <h1>🎙️ Live Genealogy Interview</h1>
+    
+    <div class="controls-row">
+      <button id="startBtn">Start Listening</button>
+      <button id="stopBtn" disabled>Stop Listening</button>
+    </div>
+    
+    <div id="status">Ready...</div>
+    <div id="chat">
+      <h2 class="chat-header">Conversation Log</h2>
+    </div>
+    
+  </main>
 
   <script>
-    const socket = io();
-    
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
-    const status = document.getElementById("status");
-    const chatDiv = document.getElementById("chat");
+  const socket = io();
+  
+  const startBtn = document.getElementById("startBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const status = document.getElementById("status");
+  const chatDiv = document.getElementById("chat");
 
-    // Use the browser's built-in Speech Recognition
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = false; // We only want finalized sentences
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = false; 
 
-    recognition.onresult = (event) => {
-      const transcript = event.results[event.results.length - 1][0].transcript.trim();
-      if (transcript) {
-        socket.emit("transcription", transcript);
-        status.innerText = `🔴 Listening...`;
-        
-        chatDiv.innerHTML += `<div class="msg"><span class="user">You:</span> ${transcript}</div>`;
-        chatDiv.innerHTML += `<div class="msg ai-loading"><span class="ai">Agent:</span> <em>Thinking...</em></div>`;
-        chatDiv.scrollTop = chatDiv.scrollHeight;
-      }
-    };
-
-    socket.on("answer", (answer) => {
-      // Replace the last "Thinking..." message with the real answer
-      const loadingMsgs = document.getElementsByClassName("ai-loading");
-      if (loadingMsgs.length > 0) {
-        const lastLoadingMsg = loadingMsgs[loadingMsgs.length - 1];
-        lastLoadingMsg.innerHTML = `<span class="ai">Agent:</span> ${answer}`;
-        lastLoadingMsg.classList.remove("ai-loading");
-      } else {
-        chatDiv.innerHTML += `<div class="msg"><span class="ai">Agent:</span> ${answer}</div>`;
-      }
+  recognition.onresult = (event) => {
+    const transcript = event.results[event.results.length - 1][0].transcript.trim();
+    if (transcript) {
+      socket.emit("transcription", transcript);
+      status.innerText = `🔴 Listening...`;
+      
+      // 1. Create a fresh conversation pair element
+      const pairId = 'pair-' + Date.now();
+      const pairHTML = `
+        <div class="conversation-pair" id="${pairId}">
+          <div class="msg user-msg"><span class="user">You:</span> ${transcript}</div>
+          <div class="msg ai-loading"><span class="ai">Agent:</span> <em>Thinking...</em></div>
+        </div>
+      `;
+      
+      // 2. Append it cleanly without touching the "Conversation Log" header text
+      chatDiv.insertAdjacentHTML('beforeend', pairHTML);
       chatDiv.scrollTop = chatDiv.scrollHeight;
-    });
+    }
+  };
 
-    startBtn.addEventListener("click", async () => {
-      try {
-        recognition.start();
-        startBtn.disabled = true;
-        stopBtn.disabled = false;
-        status.innerText = "🔴 Listening and streaming...";
-        status.style.color = "red";
-      } catch (err) {
-        console.error("Error accessing microphone:", err);
-        status.innerText = "Error accessing microphone. Check browser permissions.";
-      }
-    });
+  socket.on("answer", (answer) => {
+    // Locate the very last thinking message in the DOM
+    const loadingMsgs = document.getElementsByClassName("ai-loading");
+    if (loadingMsgs.length > 0) {
+      const lastLoadingMsg = loadingMsgs[loadingMsgs.length - 1];
+      lastLoadingMsg.innerHTML = `<span class="ai">Agent:</span> ${answer}`;
+      lastLoadingMsg.classList.remove("ai-loading");
+    } else {
+      // Fallback: If no loader is found, wrap it safely in a pair container
+      const fallbackHTML = `
+        <div class="conversation-pair">
+          <div class="msg"><span class="ai">Agent:</span> ${answer}</div>
+        </div>
+      `;
+      chatDiv.insertAdjacentHTML('beforeend', fallbackHTML);
+    }
+    chatDiv.scrollTop = chatDiv.scrollHeight;
+  });
 
-    stopBtn.addEventListener("click", () => {
-      recognition.stop();
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-      status.innerText = "Stopped.";
-      status.style.color = "gray";
-    });
-  </script>
+  startBtn.addEventListener("click", async () => {
+    try {
+      recognition.start();
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      status.innerText = "🔴 Listening and streaming...";
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      status.innerText = "Error accessing microphone. Check browser permissions.";
+    }
+  });
+
+  stopBtn.addEventListener("click", () => {
+    recognition.stop();
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    status.innerText = "Stopped.";
+  });
+</script>
 </body>
 </html>

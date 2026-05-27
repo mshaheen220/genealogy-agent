@@ -1,0 +1,283 @@
+:root {
+  --bg-app: #f4f6f8;
+  --bg-card: #ffffff;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --color-primary: #10b981;       /* Sleek Green */
+  --color-primary-light: #e6fcf5; /* Mockup light green background */
+  --color-secondary: #2563eb;     /* Blue for 'You' */
+  --border-radius: 12px;
+  --transition: all 0.2s ease-in-out;
+}
+
+/* Base Body Styling */
+/* Update this block inside your /styles/main.css */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  
+  /* Bind the background asset */
+  background-color: var(--bg-app);
+  background-image: linear-gradient(rgba(244, 246, 248, 0.5), rgba(244, 246, 248, 0.5)), url('/images/studio-bg.png');
+  background-size: cover;          /* Forces the image to seamlessly fill the viewport */
+  background-position: center;     /* Centers the lens focus point */
+  background-repeat: no-repeat;
+  background-attachment: fixed;    /* Prevents the background image from scrolling with the log stream */
+  
+  color: var(--text-main);
+  margin: 0;
+  padding: 60px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Enhancement: Adds a slight glass backdrop tint around the header text for readability */
+h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 32px;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  
+  /* Subtle text drop-shadow to pop the letters off the brighter sections of the photo background */
+  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.4);
+}
+
+/* Center Dashboard Frame Wrapper */
+.app-container {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+
+/* FIX: Controls Row forces buttons side-by-side */
+.controls-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+button {
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 14px 28px;
+  border-radius: var(--border-radius);
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: var(--transition);
+  background-color: var(--bg-card);
+  min-width: 160px;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+#startBtn {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+#startBtn:hover:not(:disabled) {
+  background-color: #f0fdf4;
+}
+
+#stopBtn {
+  border-color: #fca5a5;
+  color: #ef4444;
+}
+#stopBtn:hover:not(:disabled) {
+  background-color: #fef2f2;
+}
+
+button:disabled {
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #cbd5e1;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Clean Status Pill Badge centered cleanly under buttons */
+#status {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 6px 18px;
+  border-radius: 20px;
+  background-color: #e2e8f0;
+  color: var(--text-muted) !important; /* Overrides inline js styles */
+  margin-bottom: 40px;
+}
+
+/* Unified Main Chat Card Frame */
+#chat {
+  background-color: var(--bg-card);
+  width: 100%;
+  border-radius: 16px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  border: 1px solid #e2e8f0;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Chat Row Layout Base */
+.msg {
+  padding: 20px 24px;
+  margin: 6px 0 20px 0;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: #334155;
+  border-radius: 4px var(--border-radius) var(--border-radius) 4px;
+  background-color: var(--color-primary-light);
+  border-left: 4px solid var(--color-primary);
+}
+
+/* FIX: User Message Formatting lines resting on the card back drop */
+.user-msg {
+  background-color: transparent !important;
+  border-left: none !important;
+  padding: 12px 0;
+  margin: 0;
+}
+
+/* Inner Labels Typography formatting */
+.msg span {
+  font-weight: 700;
+  margin-right: 12px;
+  letter-spacing: 0.03em;
+}
+
+.msg .user {
+  color: var(--color-secondary);
+}
+
+.msg .ai {
+  color: var(--color-primary);
+}
+
+/* Styling for the new inner chat header */
+.chat-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-top: 0;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9; /* Subtle divider under header */
+  width: 100%;
+}
+
+/* Formats the new wrapper container */
+.conversation-pair {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Adds an optional, clean separator between different pairs */
+.conversation-pair:not(:last-child) {
+  margin-bottom: 12px;
+  border-bottom: 1px dashed #f1f5f9;
+  padding-bottom: 16px;
+}
+
+/* Keeps your existing user-msg baseline spacing clean */
+.user-msg {
+  background-color: transparent !important;
+  border-left: none !important;
+  padding: 8px 0;
+  margin: 0;
+}
+
+/* Keeps your existing agent-msg background box styling */
+.conversation-pair .msg:not(.user-msg) {
+  background-color: var(--color-primary-light);
+  border-left: 4px solid var(--color-primary);
+  padding: 16px 20px;
+  margin: 8px 0;
+  border-radius: 4px var(--border-radius) var(--border-radius) 4px;
+}
+
+/* --- APP TOP NAVIGATION BAR STYLING --- */
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px); /* Gives a soft modern frosted look over your bg image */
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  z-index: 1000; /* Keeps navigation securely over any text scrolling underneath */
+  box-sizing: border-box;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-logo {
+  font-size: 1.5rem;
+  background-color: #1e293b;
+  padding: 6px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-branding {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.brand-subtitle {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  line-height: 1.2;
+}
+
+/* Ensure body accounts for fixed top navigation clearance */
+body {
+  padding-top: 110px !important; 
+}

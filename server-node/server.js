@@ -9,6 +9,8 @@ import * as lancedb from "@lancedb/lancedb";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 
+// TODO: allow for similar (same) names. e.g. How does it know which Michael Behun we mean?
+
 // ES Module fix for __dirname
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
