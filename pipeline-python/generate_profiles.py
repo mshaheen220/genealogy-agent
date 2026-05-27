@@ -76,24 +76,52 @@ def make_safe_filename(name: str, xref_id: str) -> str:
 def get_name(record: Any) -> str:
     if record is None:
         return "Unknown"
+        
+    def clean_gedcom_name(raw_name: str) -> str:
+        # Replaces slashes with spaces and normalizes multiple spaces into one
+        return " ".join(raw_name.replace("/", " ").split())
+
+    def format_name_parts(given: str, surname: str) -> str:
+        given_parts = given.split()
+        suffixes = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"}
+        extracted_suffixes = []
+        new_given = []
+        for p in given_parts:
+            if p.lower() in suffixes:
+                extracted_suffixes.append(p)
+            else:
+                new_given.append(p)
+        
+        parts = new_given + [surname] + extracted_suffixes
+        return " ".join(p for p in parts if p)
+
     if hasattr(record, "name") and record.name:
         try:
             name_obj = record.name
-            if hasattr(name_obj, "given") and hasattr(name_obj, "surname"):
-                parts = [part for part in (name_obj.given, name_obj.surname) if part]
-                if parts:
-                    return " ".join(parts)
-            return str(name_obj)
+            given = getattr(name_obj, "given", "") or ""
+            surname = getattr(name_obj, "surname", "") or ""
+            
+            if given or surname:
+                return format_name_parts(given, surname)
+                
+            if hasattr(name_obj, "value") and name_obj.value:
+                if isinstance(name_obj.value, tuple):
+                    g = name_obj.value[0] if len(name_obj.value) > 0 else ""
+                    s = name_obj.value[1] if len(name_obj.value) > 1 else ""
+                    return format_name_parts(g, s)
+                return clean_gedcom_name(str(name_obj.value))
+            return clean_gedcom_name(str(name_obj))
         except Exception:
             pass
+            
     if hasattr(record, "sub_tag_value"):
         name_value = record.sub_tag_value("NAME")
         if name_value:
             if isinstance(name_value, tuple):
-                parts = [part for part in name_value if part]
-                if parts:
-                    return " ".join(parts)
-            return str(name_value)
+                g = name_value[0] if len(name_value) > 0 else ""
+                s = name_value[1] if len(name_value) > 1 else ""
+                return format_name_parts(g, s)
+            return clean_gedcom_name(str(name_value))
     if hasattr(record, "xref_id"):
         return record.xref_id
     return "Unknown"

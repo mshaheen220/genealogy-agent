@@ -1,6 +1,7 @@
 # Local virtual environment
 .venv/
 env/
+venv/
 
 # Data directory containing sensitive family info
 data/
@@ -8,3 +9,14 @@ data/
 # Python cache
 __pycache__/
 *.pyc
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Environment variables (API Keys)
+.env
+
+# OS generated files
+.DS_Store

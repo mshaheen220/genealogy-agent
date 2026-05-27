@@ -1,8 +1,8 @@
-# Genealogy Agent - GEDCOM Pipeline
+# Genealogy Agent
 
-This project contains Python scripts to parse, filter, and extract information from GEDCOM (`.ged`) files, generating human-readable Markdown profiles for individuals in a family tree.
+This project is a localized AI Genealogy Agent. It contains Python scripts to parse and extract information from GEDCOM (`.ged`) files into Markdown profiles, and a Node.js Retrieval-Augmented Generation (RAG) pipeline to perform semantic search and answer questions about your family history using a local vector database.
 
-## Setup
+## Python Data Pipeline Setup
 
 Ensure you have Python 3 installed. Set up your virtual environment and install dependencies:
 
@@ -13,7 +13,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Scripts
+## Python Scripts
 
 ### 1. Filter Tree (`filter_tree.py`)
 
@@ -43,3 +43,43 @@ python generate_profiles.py ../data/family_tree_filtered_I412076094635.ged
 
 **Output:**
 A new folder named `profiles_<ID>` will be created in the `data/` directory (next to the target GEDCOM file). It will contain a separate `.md` Markdown profile for each person in the parsed tree.
+
+## Node.js RAG Pipeline Setup
+
+Ensure you have Node.js installed.
+
+1. Navigate to the server directory and install dependencies:
+   ```bash
+   cd server-node
+   npm install
+   ```
+2. Create a `.env` file in `server-node` and add your Google API key (used for the LLM generation step):
+   ```text
+   GOOGLE_API_KEY=your-google-api-key-here
+   ```
+
+## Node.js Scripts
+
+### 3. Build Vector Database (`build_index.js`)
+
+This script reads the generated Markdown profiles, chunks them, and embeds them entirely locally using `@xenova/transformers` (`all-MiniLM-L6-v2`). The embeddings are stored in a local LanceDB vector database for blazing-fast semantic search without sending your private family data to an external embedding API.
+
+**Usage:**
+Pass the path of the generated profiles directory:
+```bash
+node build_index.js -i ../data/profiles_I412217321395
+```
+
+### 4. Query & Generate Answers (`query_index.js`)
+
+This script tests the Retrieval-Augmented Generation (RAG) pipeline. It embeds your question locally, performs a semantic search against the LanceDB vector store to find the most relevant family profiles, and sends those specific chunks to Google Gemini to generate a conversational answer.
+
+**Usage:**
+Pass your question using the `-q` flag:
+```bash
+node query_index.js -q "How many children did Katherine Sutyak have?"
+```
+*(Optional)* Adjust the number of context chunks retrieved using `-k` (defaults to 15):
+```bash
+node query_index.js -q "Who served in the military?" -k 20
+```
