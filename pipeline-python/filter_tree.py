@@ -8,14 +8,15 @@ from typing import DefaultDict
 
 from ged4py import GedcomReader
 
-INPUT_GEDCOM_PATH = Path("data/tree.ged")
-OUTPUT_GEDCOM_PATH = Path("data/family_tree_filtered.ged")
+# Resolve paths relative to this script's location
+BASE_DIR = Path(__file__).resolve().parent.parent
+INPUT_GEDCOM_PATH = BASE_DIR / "data" / "tree.ged"
 ROOT_INDIVIDUAL_ID = "@I412076094635@"  # Replace this with your own root individual ID.
 
 
-def make_output_path(root_individual_id: str) -> Path:
+def make_output_path(root_individual_id: str, input_path: Path) -> Path:
     normalized_id = root_individual_id.strip("@")
-    return INPUT_GEDCOM_PATH.parent / f"family_tree_filtered_{normalized_id}.ged"
+    return input_path.parent / f"family_tree_filtered_{normalized_id}.ged"
 
 META_XREF_TAGS = {"SOUR", "OBJE", "SUBM", "REPO"}
 XREF_PATTERN = re.compile(r"@[^@]+@")
@@ -223,8 +224,15 @@ def main() -> None:
         default=ROOT_INDIVIDUAL_ID,
         help="Root individual ID, with or without @ signs and leading I.",
     )
+    parser.add_argument(
+        "--input",
+        default=INPUT_GEDCOM_PATH,
+        type=Path,
+        help="Path to the input GEDCOM file.",
+    )
     args = parser.parse_args()
     root_individual_id = normalize_root_id(args.root_id)
+    input_path = args.input
 
     (
         individual_to_famc,
@@ -234,10 +242,10 @@ def main() -> None:
         family_to_children,
         individual_ids,
         family_ids,
-    ) = parse_gedcom_relationships(INPUT_GEDCOM_PATH)
+    ) = parse_gedcom_relationships(input_path)
 
     if root_individual_id not in individual_ids:
-        raise ValueError(f"Root individual {root_individual_id} was not found in the GEDCOM file.")
+        raise ValueError(f"Root individual {root_individual_id} was not found in {input_path}.")
 
     ancestor_ids, ancestor_family_ids = collect_ancestors(
         root_individual_id,
@@ -265,12 +273,12 @@ def main() -> None:
     keep_individual_ids |= descendant_ids
     keep_family_ids = ancestor_family_ids | lateral_family_ids | descendant_family_ids
 
-    raw_lines = INPUT_GEDCOM_PATH.read_text(encoding="utf-8").splitlines(keepends=True)
+    raw_lines = input_path.read_text(encoding="utf-8").splitlines(keepends=True)
     extra_xrefs = collect_meta_xrefs_for_kept_blocks(raw_lines, keep_individual_ids | keep_family_ids)
 
-    output_path = make_output_path(root_individual_id)
+    output_path = make_output_path(root_individual_id, input_path)
     write_filtered_gedcom(
-        INPUT_GEDCOM_PATH,
+        input_path,
         output_path,
         keep_individual_ids,
         keep_family_ids,
