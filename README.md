@@ -83,3 +83,4 @@ node query_index.js -q "How many children did Katherine Sutyak have?"
 ```bash
 node query_index.js -q "Who served in the military?" -k 20
 ```
+

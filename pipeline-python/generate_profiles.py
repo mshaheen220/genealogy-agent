@@ -29,6 +29,7 @@ EVENT_LABELS = {
 class IndividualProfile:
     xref_id: str
     name: str
+    aliases: list[str]
     birth_date: str
     birth_place: str
     death_date: str
@@ -95,6 +96,12 @@ def get_name(record: Any) -> str:
         parts = new_given + [surname] + extracted_suffixes
         return " ".join(p for p in parts if p)
 
+    # If the record itself is a Name object/tag
+    given = getattr(record, "given", "") or ""
+    surname = getattr(record, "surname", "") or ""
+    if given or surname:
+        return format_name_parts(given, surname)
+
     if hasattr(record, "name") and record.name:
         try:
             name_obj = record.name
@@ -122,6 +129,15 @@ def get_name(record: Any) -> str:
                 s = name_value[1] if len(name_value) > 1 else ""
                 return format_name_parts(g, s)
             return clean_gedcom_name(str(name_value))
+            
+    # Fallback if record is a tag with a value
+    if hasattr(record, "value") and record.value:
+        if isinstance(record.value, tuple):
+            g = record.value[0] if len(record.value) > 0 else ""
+            s = record.value[1] if len(record.value) > 1 else ""
+            return format_name_parts(g, s)
+        return clean_gedcom_name(str(record.value))
+
     if hasattr(record, "xref_id"):
         return record.xref_id
     return "Unknown"
@@ -218,18 +234,18 @@ def collect_record_notes_and_sources(record: Any) -> tuple[list[str], set[str]]:
     return notes, source_ids
 
 
-def describe_event(tag: str, date: str | None, place: str | None, detail: str | None = None) -> str:
+def describe_event(tag: str, date: str | None, place: str | None, detail: str | None = None) -> str | None:
     label = EVENT_LABELS.get(tag, tag.title())
     components = []
     if date:
         components.append(date)
     if place:
         components.append(place)
-    if detail:
+    if detail and detail.lower() != "unknown":
         components.append(detail)
     if components:
         return f"{label}: {' | '.join(components)}"
-    return label
+    return None
 
 
 def summarize_source_record(source_record: Any) -> str:
@@ -275,6 +291,74 @@ def build_individual_profile(
 ) -> IndividualProfile:
     record = individuals[xref_id]
     name = get_name(record)
+
+    surname = ""
+    try:
+        if hasattr(record, "name") and record.name:
+            surname = getattr(record.name, "surname", "")
+            if not surname and hasattr(record.name, "value") and isinstance(record.name.value, tuple) and len(record.name.value) > 1:
+                surname = record.name.value[1]
+        if not surname and hasattr(record, "sub_tag_value"):
+            nv = record.sub_tag_value("NAME")
+            if isinstance(nv, tuple) and len(nv) > 1:
+                surname = nv[1]
+    except Exception:
+        pass
+    surname = clean_text(surname) or ""
+
+    aliases_set = set()
+
+    def process_nick(nick_val: Any) -> None:
+        nick = clean_text(nick_val)
+        if nick:
+            clean_nick = nick.strip('\'"')
+            aliases_set.add(f'"{clean_nick}"')
+            if surname and clean_nick.lower() not in surname.lower():
+                aliases_set.add(f"{clean_nick} {surname}")
+
+    for sub in getattr(record, "sub_records", []):
+        if sub.tag == "NAME":
+            alt_name = get_name(sub)
+            if alt_name and alt_name != name and alt_name != "Unknown":
+                aliases_set.add(alt_name)
+            for name_sub in getattr(sub, "sub_records", []):
+                if name_sub.tag == "NICK" and name_sub.value:
+                    process_nick(name_sub.value)
+                elif name_sub.tag in ("_AKA", "ALIA", "_NICK") and name_sub.value:
+                    process_nick(name_sub.value)
+                elif name_sub.tag == "NOTE" and name_sub.value:
+                    note_val = clean_text(name_sub.value)
+                    # If it's a short note directly under a NAME tag, it's often a nickname
+                    if note_val and len(note_val.split()) <= 3:
+                        process_nick(note_val)
+        elif sub.tag == "NICK" and sub.value:
+            process_nick(sub.value)
+        elif sub.tag in ("_AKA", "ALIA", "_NICK") and sub.value:
+            process_nick(sub.value)
+
+    notes, source_ids = collect_record_notes_and_sources(record)
+
+    filtered_notes = []
+    excluded_short_notes = {"twin", "died young", "never married", "born dead", "stillborn", "unknown", "adopted"}
+    for note in notes:
+        note_lower = note.lower()
+        val = None
+        is_name_like = note.istitle() or len(note.split()) == 1
+        
+        if re.match(r"^(aka|nickname|also known as|goes by)\b", note_lower):
+            val = re.sub(r"^(aka|nickname|also known as|goes by):?\s*", "", note, flags=re.IGNORECASE).strip()
+        elif len(note.split()) <= 3 and is_name_like and not any(c in note for c in ".;:!?()") and note_lower not in excluded_short_notes:
+            val = note.strip()
+            
+        if val:
+            process_nick(val)
+        else:
+            filtered_notes.append(note)
+            
+    notes = filtered_notes
+
+    aliases = sorted(list(aliases_set))
+
     birth_record = record.sub_tag("BIRT")
     death_record = record.sub_tag("DEAT")
     birth_date = normalize_text(get_event_date(birth_record))
@@ -355,14 +439,12 @@ def build_individual_profile(
             continue
         if sub.tag == "MARR":
             continue
-        detail = None
-        if sub.tag == "OCCU":
-            detail = normalize_text(sub.value)
+        detail = clean_text(sub.value) if sub.value else None
         date = get_event_date(sub)
         place = get_event_place(sub)
-        if sub.tag == "RESI" and date is None:
-            continue
-        timeline_entries.append(describe_event(sub.tag, date, place, detail))
+        event_desc = describe_event(sub.tag, date, place, detail)
+        if event_desc:
+            timeline_entries.append(event_desc)
 
     for fam_id in individual_to_fams.get(xref_id, []):
         family = families.get(fam_id)
@@ -389,7 +471,6 @@ def build_individual_profile(
                 + (f" in {divorce_place}" if divorce_place else "")
             )
 
-    notes, source_ids = collect_record_notes_and_sources(record)
     source_summaries: list[str] = []
     seen_summaries: set[str] = set()
     for source_id in sorted(source_ids):
@@ -409,6 +490,7 @@ def build_individual_profile(
     return IndividualProfile(
         xref_id=xref_id,
         name=name,
+        aliases=aliases,
         birth_date=birth_date,
         birth_place=birth_place,
         death_date=death_date,
@@ -438,6 +520,12 @@ def render_markdown(profile: IndividualProfile) -> str:
         "",
         "## Basic Info",
         f"- **Full name:** {profile.name}",
+    ]
+
+    if profile.aliases:
+        lines.append(f"- **Also known as:** {', '.join(profile.aliases)}")
+
+    lines.extend([
         f"- **GEDCOM ID:** {profile.xref_id}",
         f"- **Birth date:** {profile.birth_date}",
         f"- **Birth location:** {profile.birth_place}",
@@ -446,7 +534,7 @@ def render_markdown(profile: IndividualProfile) -> str:
         "",
         "## Immediate Family",
         "**Parents:**",
-    ]
+    ])
 
     if profile.parents:
         lines.extend(f"- {parent}" for parent in profile.parents)
@@ -517,6 +605,8 @@ def write_profiles(gedcom_path: Path) -> Path:
     family_to_husb = relationships["family_to_husb"]
     family_to_wife = relationships["family_to_wife"]
     family_to_children = relationships["family_to_children"]
+
+    print(f"Generating {len(individuals)} profiles... this may take a moment.")
 
     for xref_id in sorted(individuals):
         profile = build_individual_profile(
