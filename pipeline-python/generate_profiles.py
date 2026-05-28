@@ -35,10 +35,12 @@ class IndividualProfile:
     death_date: str
     death_place: str
     parents: list[str]
+    siblings: list[str]
     spouses: list[str]
     children: list[str]
     timeline: list[str]
     notes: list[str]
+    media: list[str]
     sources: list[str]
 
 
@@ -147,6 +149,8 @@ def collect_relationships(path: Path) -> dict[str, Any]:
     families = {}
     individuals = {}
     sources: dict[str, Any] = {}
+    objects: dict[str, Any] = {}
+    notes_db: dict[str, Any] = {}
     individual_to_famc: dict[str, list[str]] = defaultdict(list)
     individual_to_fams: dict[str, list[str]] = defaultdict(list)
     family_to_husb: dict[str, str] = {}
@@ -167,17 +171,29 @@ def collect_relationships(path: Path) -> dict[str, Any]:
                 for sub in record.sub_records:
                     if sub.tag == "HUSB" and isinstance(sub.value, str):
                         family_to_husb[record.xref_id] = sub.value
+                        if record.xref_id not in individual_to_fams[sub.value]:
+                            individual_to_fams[sub.value].append(record.xref_id)
                     elif sub.tag == "WIFE" and isinstance(sub.value, str):
                         family_to_wife[record.xref_id] = sub.value
+                        if record.xref_id not in individual_to_fams[sub.value]:
+                            individual_to_fams[sub.value].append(record.xref_id)
                     elif sub.tag == "CHIL" and isinstance(sub.value, str):
                         family_to_children[record.xref_id].append(sub.value)
+                        if record.xref_id not in individual_to_famc[sub.value]:
+                            individual_to_famc[sub.value].append(record.xref_id)
             elif record.tag == "SOUR":
                 sources[record.xref_id] = record
+            elif record.tag == "OBJE":
+                objects[record.xref_id] = record
+            elif record.tag == "NOTE":
+                notes_db[record.xref_id] = record
 
     return {
         "individuals": individuals,
         "families": families,
         "sources": sources,
+        "objects": objects,
+        "notes_db": notes_db,
         "individual_to_famc": individual_to_famc,
         "individual_to_fams": individual_to_fams,
         "family_to_husb": family_to_husb,
@@ -216,14 +232,44 @@ def clean_text(value: Any) -> str | None:
     return text.strip() or None
 
 
-def collect_record_notes_and_sources(record: Any) -> tuple[list[str], set[str]]:
+def get_full_text(item: Any) -> str | None:
+    if not item: return None
+    lines = []
+    if hasattr(item, "value") and item.value is not None:
+        lines.append(str(item.value))
+    for sub in getattr(item, "sub_records", []):
+        if sub.tag == "CONT":
+            lines.append("\n" + (str(sub.value) if sub.value else ""))
+        elif sub.tag == "CONC":
+            lines.append(str(sub.value) if sub.value else "")
+    res = "".join(lines).strip()
+    return res if res else None
+
+
+def collect_record_notes_and_sources(record: Any, notes_db: dict[str, Any]) -> tuple[list[str], set[str]]:
     notes: list[str] = []
     source_ids: set[str] = set()
 
     def walk(item: Any) -> None:
         for sub in getattr(item, "sub_records", []):
-            if sub.tag == "NOTE" and sub.value is not None:
-                cleaned = clean_text(sub.value)
+            if sub.tag == "OBJE":
+                continue  # Skip walking into OBJE tags to avoid extracting transcriptions as generic notes
+            if sub.tag in ("NOTE", "TEXT", "DESC", "_TRAN", "_TEXT", "_DSCR", "_NOTE", "TRAN", "_TRANS", "TRANSCRIPT", "_TRANSCRIPT", "TRANSCRIPTION", "_TRANSCRIPTION", "_META"):
+                val = str(sub.value).strip() if sub.value else ""
+                if val.startswith("@") and val.endswith("@"):
+                    note_rec = notes_db.get(val)
+                    full = get_full_text(note_rec)
+                else:
+                    full = get_full_text(sub)
+                
+                if full and sub.tag == "_META":
+                    match = re.search(r"<transcription[^>]*>(.*?)</transcription>", full, flags=re.IGNORECASE | re.DOTALL)
+                    if match:
+                        full = match.group(1)
+                    else:
+                        full = None
+                
+                cleaned = clean_text(full)
                 if cleaned:
                     notes.append(cleaned)
             elif sub.tag == "SOUR" and isinstance(sub.value, str):
@@ -248,12 +294,26 @@ def describe_event(tag: str, date: str | None, place: str | None, detail: str | 
     return None
 
 
-def summarize_source_record(source_record: Any) -> str:
+def summarize_source_record(source_record: Any, notes_db: dict[str, Any]) -> str:
     title = clean_text(source_record.sub_tag_value("TITL"))
     author = clean_text(source_record.sub_tag_value("AUTH"))
     publisher = clean_text(source_record.sub_tag_value("PUBL"))
     page = clean_text(source_record.sub_tag_value("PAGE"))
-    note = clean_text(source_record.sub_tag_value("NOTE"))
+    
+    def get_resolved_text(tag_name: str) -> str | None:
+        sub = source_record.sub_tag(tag_name)
+        if not sub: return None
+        val = str(sub.value).strip() if sub.value else ""
+        if val.startswith("@") and val.endswith("@"):
+            n_rec = notes_db.get(val)
+            full = get_full_text(n_rec)
+        else:
+            full = get_full_text(sub)
+        return clean_text(full)
+
+    note = get_resolved_text("NOTE")
+    text_val = get_resolved_text("TEXT")
+    
     publ_record = source_record.sub_tag("PUBL")
     publ_date = get_event_date(publ_record)
     publ_place = get_event_place(publ_record)
@@ -273,9 +333,115 @@ def summarize_source_record(source_record: Any) -> str:
         components.append(f"Page: {page}")
     if note:
         components.append(f"Note: {note}")
+    if text_val:
+        components.append(f"Text: {text_val}")
+
+    data_record = source_record.sub_tag("DATA")
+    if data_record:
+        data_text_sub = data_record.sub_tag("TEXT")
+        if data_text_sub:
+            data_text = clean_text(get_full_text(data_text_sub))
+            if data_text and f"Text: {data_text}" not in components:
+                components.append(f"Text: {data_text}")
 
     summary = "; ".join(components) if components else "Source record"
     return summary
+
+
+def collect_media(record: Any, objects_db: dict[str, Any], notes_db: dict[str, Any]) -> list[str]:
+    media_summaries: list[str] = []
+    seen_media: set[str] = set()
+
+    def process_obje(obje_record: Any, local_link: Any = None) -> None:
+        titles = []
+        files = []
+        def walk_for_meta(item: Any):
+            for sub in getattr(item, "sub_records", []):
+                if sub.tag == "TITL" and sub.value:
+                    titles.append(clean_text(sub.value))
+                elif sub.tag == "FILE" and sub.value:
+                    files.append(clean_text(sub.value))
+                walk_for_meta(sub)
+        walk_for_meta(obje_record)
+        if local_link:
+            walk_for_meta(local_link)
+        
+        title = titles[0] if titles else None
+        file_ref = files[0] if files else None
+        
+        if not title and obje_record.value and not str(obje_record.value).startswith('@'):
+            title = clean_text(obje_record.value)
+        
+        obje_notes = []
+        def walk_notes(item: Any) -> None:
+            for sub in getattr(item, "sub_records", []):
+                if sub.tag in ("NOTE", "TEXT", "DESC", "_TRAN", "_TEXT", "_DSCR", "_NOTE", "TRAN", "_TRANS", "TRANSCRIPT", "_TRANSCRIPT", "TRANSCRIPTION", "_TRANSCRIPTION", "_META"):
+                    val = str(sub.value).strip() if sub.value else ""
+                    if val.startswith("@") and val.endswith("@"):
+                        note_rec = notes_db.get(val)
+                        full = get_full_text(note_rec)
+                    else:
+                        full = get_full_text(sub)
+                    
+                    if full and sub.tag == "_META":
+                        match = re.search(r"<transcription[^>]*>(.*?)</transcription>", full, flags=re.IGNORECASE | re.DOTALL)
+                        if match:
+                            full = match.group(1)
+                        else:
+                            full = None
+                    
+                    cleaned = clean_text(full)
+                    if cleaned:
+                        obje_notes.append(cleaned)
+                walk_notes(sub)
+        walk_notes(obje_record)
+        if local_link:
+            walk_notes(local_link)
+
+        direct_conts = []
+        for item in [obje_record, local_link]:
+            if item:
+                for sub in getattr(item, "sub_records", []):
+                    if sub.tag == "CONT":
+                        direct_conts.append("\n" + (str(sub.value) if sub.value else ""))
+                    elif sub.tag == "CONC":
+                        direct_conts.append(str(sub.value) if sub.value else "")
+        if direct_conts:
+            obje_notes.append("".join(direct_conts).strip())
+
+        components = []
+        if title:
+            components.append(f"Title: {title}")
+        if file_ref:
+            components.append(f"File: {file_ref}")
+            
+        transcription_added = False
+        if obje_notes:
+            transcription = "\n\n".join(obje_notes)
+            transcription = re.sub(r"^(transcription|transcript|description):?\s*", "", transcription, flags=re.IGNORECASE).strip()
+            if transcription.lower() not in ("image", "primary", "story", "image primary", "story primary") and transcription:
+                components.append(f"Transcription/Note: {transcription}")
+                transcription_added = True
+        
+        if transcription_added:
+            summary = " - ".join(components)
+            if summary not in seen_media:
+                seen_media.add(summary)
+                media_summaries.append(summary)
+
+    def walk_for_obje(item: Any) -> None:
+        for sub in getattr(item, "sub_records", []):
+            if sub.tag == "OBJE":
+                if isinstance(sub.value, str) and sub.value.startswith('@'):
+                    obj_rec = objects_db.get(sub.value.strip())
+                    if obj_rec:
+                        process_obje(obj_rec, local_link=sub)
+                else:
+                    process_obje(sub)
+            walk_for_obje(sub)
+
+    walk_for_obje(record)
+    return media_summaries
 
 
 def build_individual_profile(
@@ -283,6 +449,8 @@ def build_individual_profile(
     individuals: dict[str, Any],
     families: dict[str, Any],
     sources: dict[str, Any],
+    objects: dict[str, Any],
+    notes_db: dict[str, Any],
     individual_to_famc: dict[str, list[str]],
     individual_to_fams: dict[str, list[str]],
     family_to_husb: dict[str, str],
@@ -336,10 +504,24 @@ def build_individual_profile(
         elif sub.tag in ("_AKA", "ALIA", "_NICK") and sub.value:
             process_nick(sub.value)
 
-    notes, source_ids = collect_record_notes_and_sources(record)
+    notes, source_ids = collect_record_notes_and_sources(record, notes_db)
+
+    media_summaries = collect_media(record, objects, notes_db)
+
+    # Pull in media, notes, and sources from the individual's marriages/families
+    for fam_id in individual_to_fams.get(xref_id, []):
+        family_record = families.get(fam_id)
+        if family_record:
+            fam_notes, fam_sources = collect_record_notes_and_sources(family_record, notes_db)
+            notes.extend(fam_notes)
+            source_ids.update(fam_sources)
+            for m in collect_media(family_record, objects, notes_db):
+                if m not in media_summaries:
+                    media_summaries.append(m)
 
     filtered_notes = []
     excluded_short_notes = {"twin", "died young", "never married", "born dead", "stillborn", "unknown", "adopted"}
+    excluded_words = {"wedding", "invitation", "census", "obituary", "record", "birth", "death", "marriage", "family", "certificate", "license"}
     for note in notes:
         note_lower = note.lower()
         val = None
@@ -347,11 +529,16 @@ def build_individual_profile(
         
         if re.match(r"^(aka|nickname|also known as|goes by)\b", note_lower):
             val = re.sub(r"^(aka|nickname|also known as|goes by):?\s*", "", note, flags=re.IGNORECASE).strip()
-        elif len(note.split()) <= 3 and is_name_like and not any(c in note for c in ".;:!?()") and note_lower not in excluded_short_notes:
+        elif len(note.split()) <= 4 and is_name_like and not any(c in note for c in ".;:!?()") and note_lower not in excluded_short_notes and not any(w in note_lower for w in excluded_words):
             val = note.strip()
             
         if val:
             process_nick(val)
+        elif "transcription" in note_lower or "transcript" in note_lower:
+            clean_transcription = re.sub(r"^(transcription|transcript):?\s*", "", note, flags=re.IGNORECASE).strip()
+            new_media = f"Transcription/Note: {clean_transcription}"
+            if new_media not in media_summaries:
+                media_summaries.append(new_media)
         else:
             filtered_notes.append(note)
             
@@ -379,6 +566,15 @@ def build_individual_profile(
         if mother_id:
             mother_name = get_name(individuals.get(mother_id))
             parents.append(f"Mother: {mother_name} ({mother_id})")
+
+    siblings_list = []
+    seen_siblings: set[str] = set()
+    for fam_id in individual_to_famc.get(xref_id, []):
+        for child_id in family_to_children.get(fam_id, []):
+            if child_id != xref_id and child_id not in seen_siblings:
+                seen_siblings.add(child_id)
+                sibling_name = get_name(individuals.get(child_id))
+                siblings_list.append(f"{sibling_name} ({child_id})")
 
     spouses = []
     seen_spouses: set[str] = set()
@@ -477,10 +673,14 @@ def build_individual_profile(
         source_record = sources.get(source_id)
         if source_record is None:
             continue
-        summary = summarize_source_record(source_record)
+        summary = summarize_source_record(source_record, notes_db)
         if summary not in seen_summaries:
             seen_summaries.add(summary)
             source_summaries.append(summary)
+            
+        for m in collect_media(source_record, objects, notes_db):
+            if m not in media_summaries:
+                media_summaries.append(m)
 
     timeline_entries = sorted(
         timeline_entries,
@@ -496,10 +696,12 @@ def build_individual_profile(
         death_date=death_date,
         death_place=death_place,
         parents=parents,
+        siblings=siblings_list,
         spouses=spouses,
         children=children_list,
         timeline=[entry for entry in timeline_entries if entry],
         notes=notes,
+        media=media_summaries,
         sources=source_summaries,
     )
 
@@ -542,6 +744,13 @@ def render_markdown(profile: IndividualProfile) -> str:
         lines.append("Unknown")
 
     lines.append("")
+    lines.append("**Siblings:**")
+    if profile.siblings:
+        lines.extend(f"- {sibling}" for sibling in profile.siblings)
+    else:
+        lines.append("Unknown")
+
+    lines.append("")
     lines.append("**Spouses:**")
     if profile.spouses:
         lines.extend(f"- {spouse}" for spouse in profile.spouses)
@@ -561,6 +770,11 @@ def render_markdown(profile: IndividualProfile) -> str:
         lines.extend(f"- {note}" for note in profile.notes)
     else:
         lines.append("No notes available.")
+
+    if profile.media:
+        lines.append("")
+        lines.append("## Media & Transcriptions")
+        lines.extend(f"- {m}" for m in profile.media)
 
     if profile.sources:
         lines.append("")
@@ -600,6 +814,8 @@ def write_profiles(gedcom_path: Path) -> Path:
     individuals = relationships["individuals"]
     families = relationships["families"]
     sources = relationships["sources"]
+    objects = relationships.get("objects", {})
+    notes_db = relationships.get("notes_db", {})
     individual_to_famc = relationships["individual_to_famc"]
     individual_to_fams = relationships["individual_to_fams"]
     family_to_husb = relationships["family_to_husb"]
@@ -614,6 +830,8 @@ def write_profiles(gedcom_path: Path) -> Path:
             individuals,
             families,
             sources,
+            objects,
+            notes_db,
             individual_to_famc,
             individual_to_fams,
             family_to_husb,

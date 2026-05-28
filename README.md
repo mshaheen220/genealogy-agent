@@ -44,6 +44,15 @@ python generate_profiles.py ../data/family_tree_filtered_I412076094635.ged
 **Output:**
 A new folder named `profiles_<ID>` will be created in the `data/` directory (next to the target GEDCOM file). It will contain a separate `.md` Markdown profile for each person in the parsed tree.
 
+### 3. Build SQLite Database (`build_sqlite.py`)
+
+This script parses the GEDCOM file and extracts structured data (names, dates, child/spouse/sibling counts) into a local SQLite database (`genealogy.db`). This provides the AI with a structured data source to accurately answer aggregate counting and math questions without hallucinating.
+
+**Usage:**
+```bash
+python build_sqlite.py ../data/family_tree_filtered_I412076094635.ged
+```
+
 ## Node.js RAG Pipeline Setup
 
 Ensure you have Node.js installed.
@@ -60,7 +69,7 @@ Ensure you have Node.js installed.
 
 ## Node.js Scripts
 
-### 3. Build Vector Database (`build_index.js`)
+### 4. Build Vector Database (`build_index.js`)
 
 This script reads the generated Markdown profiles, chunks them, and embeds them entirely locally using `@xenova/transformers` (`all-MiniLM-L6-v2`). The embeddings are stored in a local LanceDB vector database for blazing-fast semantic search without sending your private family data to an external embedding API.
 
@@ -83,4 +92,9 @@ node query_index.js -q "How many children did Katherine Sutyak have?"
 ```bash
 node query_index.js -q "Who served in the military?" -k 20
 ```
+### 5. Query & Generate Answers (query_index.js)
 
+This script tests the Retrieval-Augmented Generation (RAG) pipeline. It embeds your question locally, performs a semantic search against the LanceDB vector store to find the most relevant family profiles, and sends those specific chunks to Google Gemini to generate a conversational answer.
+
+### 6. Live Audio Web Server (server.js & index.html)
+This is the main interactive application. It launches an Express web server with a WebSocket connection (Socket.io) to a web-based dashboard. Using the browser's Web Speech API, it captures your live microphone speech during family interviews, transcribes it, and sends it to the backend. + +The backend features a Dual-Brain Routing Architecture: +- Vector Search (LanceDB): Uses a custom Hybrid Search (Vector + Keyword) to find specific biographies, stories, and transcriptions, robustly handling phonetic misspellings from speech-to-text. +- Structured Data (SQLite): Dynamically writes and executes SQL queries to accurately answer aggregate or global questions (e.g., "who had the most children?"). + +The agent also maintains Conversation Memory for follow-up questions and provides Source Citations directly in the chat UI, showing exactly which files or SQL queries it used to formulate the answer. + +Usage: +Start the server: +bash +node server.js + +Then open your browser (Chrome or Safari recommended) to http://localhost:3000. Click "Start Listening", allow microphone permissions, and speak your questions naturally!
