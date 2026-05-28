@@ -228,6 +228,10 @@ def clean_text(value: Any) -> str | None:
     if text is None:
         return None
     text = html.unescape(text)
+    text = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", text, flags=re.IGNORECASE | re.DOTALL)
+    # Convert HTML line breaks into actual newlines so words don't get smashed together
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"</p>", "\n\n", text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]+>", "", text)
     return text.strip() or None
 
@@ -254,7 +258,7 @@ def collect_record_notes_and_sources(record: Any, notes_db: dict[str, Any]) -> t
         for sub in getattr(item, "sub_records", []):
             if sub.tag == "OBJE":
                 continue  # Skip walking into OBJE tags to avoid extracting transcriptions as generic notes
-            if sub.tag in ("NOTE", "TEXT", "DESC", "_TRAN", "_TEXT", "_DSCR", "_NOTE", "TRAN", "_TRANS", "TRANSCRIPT", "_TRANSCRIPT", "TRANSCRIPTION", "_TRANSCRIPTION", "_META"):
+            if sub.tag in ("NOTE", "TEXT", "DESC", "_TRAN", "_TEXT", "_DSCR", "_NOTE", "TRAN", "_TRANS", "TRANSCRIPT", "_TRANSCRIPT", "TRANSCRIPTION", "_TRANSCRIPTION", "_META", "_STORY", "STORY", "_CONTENT", "CONTENT", "_HTML", "HTML"):
                 val = str(sub.value).strip() if sub.value else ""
                 if val.startswith("@") and val.endswith("@"):
                     note_rec = notes_db.get(val)
@@ -263,9 +267,9 @@ def collect_record_notes_and_sources(record: Any, notes_db: dict[str, Any]) -> t
                     full = get_full_text(sub)
                 
                 if full and sub.tag == "_META":
-                    match = re.search(r"<transcription[^>]*>(.*?)</transcription>", full, flags=re.IGNORECASE | re.DOTALL)
-                    if match:
-                        full = match.group(1)
+                    matches = re.findall(r"<(transcription|description|text|story|content)[^>]*>(.*?)</\1>", full, flags=re.IGNORECASE | re.DOTALL)
+                    if matches:
+                        full = "\n\n".join(m[1].strip() for m in matches if m[1].strip())
                     else:
                         full = None
                 
@@ -375,7 +379,7 @@ def collect_media(record: Any, objects_db: dict[str, Any], notes_db: dict[str, A
         obje_notes = []
         def walk_notes(item: Any) -> None:
             for sub in getattr(item, "sub_records", []):
-                if sub.tag in ("NOTE", "TEXT", "DESC", "_TRAN", "_TEXT", "_DSCR", "_NOTE", "TRAN", "_TRANS", "TRANSCRIPT", "_TRANSCRIPT", "TRANSCRIPTION", "_TRANSCRIPTION", "_META"):
+                if sub.tag in ("NOTE", "TEXT", "DESC", "_TRAN", "_TEXT", "_DSCR", "_NOTE", "TRAN", "_TRANS", "TRANSCRIPT", "_TRANSCRIPT", "TRANSCRIPTION", "_TRANSCRIPTION", "_META", "_STORY", "STORY", "_CONTENT", "CONTENT", "_HTML", "HTML"):
                     val = str(sub.value).strip() if sub.value else ""
                     if val.startswith("@") and val.endswith("@"):
                         note_rec = notes_db.get(val)
@@ -384,9 +388,9 @@ def collect_media(record: Any, objects_db: dict[str, Any], notes_db: dict[str, A
                         full = get_full_text(sub)
                     
                     if full and sub.tag == "_META":
-                        match = re.search(r"<transcription[^>]*>(.*?)</transcription>", full, flags=re.IGNORECASE | re.DOTALL)
-                        if match:
-                            full = match.group(1)
+                        matches = re.findall(r"<(transcription|description|text|story|content)[^>]*>(.*?)</\1>", full, flags=re.IGNORECASE | re.DOTALL)
+                        if matches:
+                            full = "\n\n".join(m[1].strip() for m in matches if m[1].strip())
                         else:
                             full = None
                     
@@ -418,7 +422,7 @@ def collect_media(record: Any, objects_db: dict[str, Any], notes_db: dict[str, A
         transcription_added = False
         if obje_notes:
             transcription = "\n\n".join(obje_notes)
-            transcription = re.sub(r"^(transcription|transcript|description):?\s*", "", transcription, flags=re.IGNORECASE).strip()
+            transcription = re.sub(r"^(transcription|transcript|description|story|content|text):?\s*", "", transcription, flags=re.IGNORECASE).strip()
             if transcription.lower() not in ("image", "primary", "story", "image primary", "story primary") and transcription:
                 components.append(f"Transcription/Note: {transcription}")
                 transcription_added = True
