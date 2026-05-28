@@ -188,6 +188,7 @@ CRITICAL RULES FOR REASONING:
 4. EXHAUSTIVE SEARCH: Read ALL provided chunks. The first chunk might be a decoy.
 5. DATA CLEANUP IS MANDATORY: You are powering a genealogy cleanup app. If ANY relevant information is missing for a matched person (e.g., unknown birth, unknown spouse), you MUST output a <cleanup> tag at the VERY END suggesting what to research next.
 6. LIVING PEOPLE EXCEPTION: If a person was born less than 110 years ago and has an "Unknown" death date, THEY ARE ALIVE. Their death info is NOT missing, it just hasn't happened yet! Do NOT mention death records in your <cleanup> tag.
+7. CURRENT DATE: Today's date is ${today}. You MUST use this to calculate current ages if asked.
 
 OUTPUT FORMAT:
 1. You MUST wrap your internal reasoning in <thinking> tags. 

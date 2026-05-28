@@ -26,52 +26,94 @@
   <main class="app-container">
     
     <h1>🎙️ Live Genealogy Interview</h1>
-    
-    <div class="controls-row">
-      <button id="startBtn">Start Listening</button>
-      <button id="stopBtn" disabled>Stop Listening</button>
+        
+    <div class="input-row">
+      <input type="text" id="textInput" placeholder="Type a question about your family tree..." autocomplete="off" />
+      <button id="sendBtn">Ask</button>
     </div>
-    
-    <div id="status">Ready...</div>
+
+        <div class="controls-row">
+      <label class="switch" title="Toggle Microphone">
+        <input type="checkbox" id="micToggleCheckbox">
+        <span class="slider round"></span>
+      </label>
+      <span id="micToggleLabel">Microphone Off</span>
+    </div>
+
     <div id="chat">
       <h2 class="chat-header">Conversation Log</h2>
     </div>
     
   </main>
 
+  <div id="status">Ready...</div>
+
   <script>
   const socket = io();
   
-  const startBtn = document.getElementById("startBtn");
-  const stopBtn = document.getElementById("stopBtn");
+  const micToggleCheckbox = document.getElementById("micToggleCheckbox");
+  const micToggleLabel = document.getElementById("micToggleLabel");
   const status = document.getElementById("status");
   const chatDiv = document.getElementById("chat");
+  const textInput = document.getElementById("textInput");
+  const sendBtn = document.getElementById("sendBtn");
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const recognition = new SpeechRecognition();
   recognition.continuous = true;
   recognition.interimResults = false; 
+  let isListening = false;
 
-  recognition.onresult = (event) => {
-    const transcript = event.results[event.results.length - 1][0].transcript.trim();
-    if (transcript) {
-      socket.emit("transcription", transcript);
-      status.innerText = `🔴 Listening...`;
+  function submitQuestion(text) {
+    if (text) {
+      socket.emit("transcription", text);
+      status.innerText = `Processing...`;
       
-      // 1. Create a fresh conversation pair element
       const pairId = 'pair-' + Date.now();
       const pairHTML = `
         <div class="conversation-pair" id="${pairId}">
-          <div class="msg user-msg"><span class="user">You:</span> ${transcript}</div>
+          <div class="msg user-msg"><span class="user">You:</span> ${text}</div>
           <div class="msg ai-loading"><span class="ai">Agent:</span> <em>Thinking...</em></div>
         </div>
       `;
       
-      // 2. Append it cleanly without touching the "Conversation Log" header text
       chatDiv.insertAdjacentHTML('beforeend', pairHTML);
       chatDiv.scrollTop = chatDiv.scrollHeight;
     }
+  }
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[event.results.length - 1][0].transcript.trim();
+    if (transcript) {
+      submitQuestion(transcript);
+      status.innerText = `🔴 Listening...`;
+    }
   };
+
+  recognition.onend = () => {
+    isListening = false;
+    micToggleCheckbox.checked = false;
+    micToggleLabel.innerText = "Microphone Off";
+    status.innerText = "Stopped.";
+  };
+
+  sendBtn.addEventListener("click", () => {
+    const text = textInput.value.trim();
+    if (text) {
+      submitQuestion(text);
+      textInput.value = "";
+    }
+  });
+
+  textInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      const text = textInput.value.trim();
+      if (text) {
+        submitQuestion(text);
+        textInput.value = "";
+      }
+    }
+  });
 
   socket.on("answer", (answer) => {
     // Locate the very last thinking message in the DOM
@@ -90,25 +132,30 @@
       chatDiv.insertAdjacentHTML('beforeend', fallbackHTML);
     }
     chatDiv.scrollTop = chatDiv.scrollHeight;
-  });
 
-  startBtn.addEventListener("click", async () => {
-    try {
-      recognition.start();
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-      status.innerText = "🔴 Listening and streaming...";
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-      status.innerText = "Error accessing microphone. Check browser permissions.";
+    // Reset the status indicator after processing finishes
+    if (isListening) {
+      status.innerText = "🔴 Listening...";
+    } else {
+      status.innerText = "Ready...";
     }
   });
 
-  stopBtn.addEventListener("click", () => {
-    recognition.stop();
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    status.innerText = "Stopped.";
+  micToggleCheckbox.addEventListener("change", (e) => {
+    if (e.target.checked) {
+      try {
+        recognition.start();
+        isListening = true;
+        micToggleLabel.innerText = "Microphone On";
+        status.innerText = "🔴 Listening and streaming...";
+      } catch (err) {
+        console.error("Error accessing microphone:", err);
+        status.innerText = "Error accessing microphone. Check browser permissions.";
+        micToggleCheckbox.checked = false;
+      }
+    } else {
+      recognition.stop();
+    }
   });
 </script>
 </body>
