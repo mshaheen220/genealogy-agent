@@ -76,7 +76,7 @@ This script reads the generated Markdown profiles, chunks them, and embeds them 
 **Usage:**
 Pass the path of the generated profiles directory:
 ```bash
-node build_index.js -i ../data/profiles_I412217321395
+node build_index.js -i ../data/profiles_I412076094635
 ```
 
 ### 2. Query & Generate Answers (`query_index.js`)
@@ -105,3 +105,10 @@ Start the server:
 node server.js 
 ```
 Then open your browser (Chrome or Safari recommended) to http://localhost:3000. Click "Start Listening", allow microphone permissions, and speak your questions naturally!
+
+## Running the Entire Pipeline 
+
+Instead of running the Python and Node scripts individually, you can automatically run the entire data extraction and vector embedding process in one command using the orchestration script: 
+```bash
+./run_pipeline.sh data/tree.ged I412076094635
+```
