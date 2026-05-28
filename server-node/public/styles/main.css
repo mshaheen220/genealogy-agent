@@ -26,6 +26,9 @@ body {
   color: var(--text-main);
   margin: 0;
   padding: 60px 20px;
+  /* Ensure body accounts for fixed top navigation clearance */
+  padding-top: 90px !important; 
+
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -59,24 +62,25 @@ h1 {
   height: 100%;
 }
 
+.app-container h1 {display: none;} /* Hides the original header since we now have a fixed top nav */
 
 /* FIX: Controls Row forces buttons side-by-side */
 .controls-row {
   display: flex;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 button {
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  padding: 14px 28px;
+  padding: 8px 16px;
   border-radius: var(--border-radius);
   border: 1px solid #cbd5e1;
   cursor: pointer;
   transition: var(--transition);
   background-color: var(--bg-card);
-  min-width: 160px;
+  min-width: 120px;
 }
 
 button:hover:not(:disabled) {
@@ -123,7 +127,7 @@ button:disabled {
   border-radius: 20px;
   background-color: #e2e8f0;
   color: var(--text-muted) !important; /* Overrides inline js styles */
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 
 /* Unified Main Chat Card Frame */
@@ -152,6 +156,7 @@ button:disabled {
   border-radius: 4px var(--border-radius) var(--border-radius) 4px;
   background-color: var(--color-primary-light);
   border-left: 4px solid var(--color-primary);
+  white-space: pre-wrap; /* Preserves LLM line breaks and bullet points! */
 }
 
 /* FIX: User Message Formatting lines resting on the card back drop */
@@ -248,14 +253,13 @@ button:disabled {
 
 .header-logo {
   font-size: 1.5rem;
-  background-color: #1e293b;
-  padding: 6px;
-  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-
+.header-logo img {
+  height: 50px;
+}
 .header-branding {
   display: flex;
   flex-direction: column;
@@ -275,9 +279,4 @@ button:disabled {
   letter-spacing: 0.03em;
   color: #64748b;
   line-height: 1.2;
-}
-
-/* Ensure body accounts for fixed top navigation clearance */
-body {
-  padding-top: 110px !important; 
 }
