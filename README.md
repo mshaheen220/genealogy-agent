@@ -102,7 +102,7 @@ The agent also maintains Conversation Memory for follow-up questions and provide
 Usage: 
 Start the server: 
 ```bash
-node server.js 
+ROOT_ID=I412076094635 node server.js 
 ```
 Then open your browser (Chrome or Safari recommended) to http://localhost:3000. Click "Start Listening", allow microphone permissions, and speak your questions naturally!
 
@@ -112,3 +112,5 @@ Instead of running the Python and Node scripts individually, you can automatical
 ```bash
 ./run_pipeline.sh data/tree.ged I412076094635
 ```
+
+You are now ready to query the index, startup the server and use the chat, or use the normalized data as you see fit.
