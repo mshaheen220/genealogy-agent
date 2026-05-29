@@ -29,7 +29,7 @@
         
     <div class="input-row">
       <input type="text" id="textInput" placeholder="Type a question about your family tree..." autocomplete="off" />
-      <button id="sendBtn">Ask</button>
+      <button id="sendBtn" aria-label="Ask question" title="Ask">✨</button>
     </div>
 
         <div class="controls-row">
@@ -47,6 +47,13 @@
   </main>
 
   <div id="status">Ready...</div>
+
+  <div id="root-person">
+    <div class="root-details">
+      <span class="root-label">Family of</span>
+      <span id="root-name">Loading...</span>
+    </div>
+  </div>
 
   <script>
   const socket = io();
@@ -139,6 +146,10 @@
     } else {
       status.innerText = "Ready...";
     }
+  });
+
+  socket.on("root-info", (data) => {
+    document.getElementById("root-name").innerText = data.name;
   });
 
   micToggleCheckbox.addEventListener("change", (e) => {

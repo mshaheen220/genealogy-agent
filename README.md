@@ -46,7 +46,7 @@ A new folder named `profiles_<ID>` will be created in the `data/` directory (nex
 
 ### 3. Build SQLite Database (`build_sqlite.py`)
 
-This script parses the GEDCOM file and extracts structured data (names, dates, child/spouse/sibling counts) into a local SQLite database (`genealogy.db`). This provides the AI with a structured data source to accurately answer aggregate counting and math questions without hallucinating.
+This script parses the GEDCOM file and extracts structured data (names, dates, child/spouse/sibling counts) into a local SQLite database (e.g., `genealogy_I412076094635.db`). This provides the AI with a structured data source to accurately answer aggregate counting and math questions without hallucinating.
 
 **Usage:**
 ```bash
@@ -76,7 +76,7 @@ This script reads the generated Markdown profiles, chunks them, and embeds them 
 **Usage:**
 Pass the path of the generated profiles directory:
 ```bash
-node build_index.js -i ../data/profiles_I412076094635
+node build_index.js -i ../data/profiles_I412076094635 -o ../data/vector_store_I412076094635
 ```
 
 ### 2. Query & Generate Answers (`query_index.js`)

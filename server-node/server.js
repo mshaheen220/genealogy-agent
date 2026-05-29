@@ -10,7 +10,6 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 import { DatabaseSync } from "node:sqlite";
 
-// TODO: allow for similar (same) names. e.g. How does it know which Michael Behun we mean?
 
 // ES Module fix for __dirname
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,13 +21,20 @@ const io = new Server(server);
 // Global AI Variables
 let generateEmbedding, dbTable, llm, dbSql;
 
+const rootId = process.env.ROOT_ID;
+if (!rootId) {
+  console.error("❌ Error: ROOT_ID environment variable is not set.");
+  console.error("Usage: ROOT_ID=I412076094635 node server.js");
+  process.exit(1);
+}
+
 // Initialize AI Models & Database
 async function initAI() {
-  console.log("Loading AI model & connecting to Databases...");
+  console.log(`Loading AI model & connecting to Databases for ROOT_ID: ${rootId}...`);
   generateEmbedding = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
-  const db = await lancedb.connect(path.resolve("../data/vector_store"));
+  const db = await lancedb.connect(path.resolve(`../data/vector_store_${rootId}`));
   dbTable = await db.openTable("genealogy_profiles");
-  dbSql = new DatabaseSync(path.resolve("../data/genealogy.db"));
+  dbSql = new DatabaseSync(path.resolve(`../data/genealogy_${rootId}.db`));
   llm = new ChatGoogleGenerativeAI({
     model: "gemini-2.5-flash-lite",
     temperature: 0,
@@ -44,6 +50,21 @@ io.on("connection", (socket) => {
 
   // Give the agent short-term memory for this specific user session
   const chatHistory = [];
+
+  // Send the root person's info to the UI for the bottom-right widget
+  const sendRootInfo = () => {
+    if (!dbSql || !rootId) return;
+    let rootName = "Unknown Subject";
+    try {
+      // Use LIKE to bypass any wrapping '@' symbols in the GEDCOM ID
+      const rootPerson = dbSql.prepare("SELECT full_name FROM individuals WHERE id LIKE ? LIMIT 1").get(`%${rootId.replace(/@/g, '')}%`);
+      if (rootPerson) rootName = rootPerson.full_name;
+    } catch (err) {
+      console.error("Failed to query root person:", err.message);
+    }
+    socket.emit("root-info", { id: rootId, name: rootName });
+  };
+  if (dbSql) sendRootInfo(); else setTimeout(sendRootInfo, 2000);
 
   socket.on("transcription", async (text) => {
     console.log(`\n🗣️  User said: "${text}"`);
@@ -65,6 +86,7 @@ Decide if the user's question requires a SQL query or a Vector Database search.
 
 Use "sql" ONLY for global/aggregate math across the WHOLE family (e.g., "how many people total", "who had the most children", "who is the oldest").
 Use "vector" for ANY question about a SPECIFIC PERSON (e.g., "how many children did Steven have", "when was Katherine born", stories, biographies). The vector database handles speech-to-text phonetic misspellings of names much better than SQL exact matches.
+Use "vector" for questions about people "missing" from the tree, "unlinked" people, or "orphans". The vector database holds archival documents of people not yet in the tree, tagged with "UNLINKED ORPHAN" or "PARTIALLY LINKED". Use these exact tags as your vector search query!
 
 The SQLite database has two tables:
 1. 'individuals': id TEXT, full_name TEXT, first_name TEXT, last_name TEXT, gender TEXT, birth_date TEXT, birth_year INTEGER, death_date TEXT, death_year INTEGER, child_count INTEGER, spouse_count INTEGER, sibling_count INTEGER
@@ -114,7 +136,7 @@ Assume the SQL results correctly answer the user's question. Formulate a polite,
           ]);
 
           console.log(`💡 Answer: ${aiResponse.content}`);
-          const uiAnswer = `${aiResponse.content}<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.05); font-size: 0.85em; color: var(--text-muted);">⚙️ <b>Ran SQL:</b> <code>${route.query}</code></div>`;
+          const uiAnswer = `${aiResponse.content}<div class="answer-footer">⚙️ <b>Ran SQL:</b> <code>${route.query}</code></div>`;
           socket.emit("answer", uiAnswer);
           
           chatHistory.push({ role: "user", content: text });
@@ -170,8 +192,8 @@ Assume the SQL results correctly answer the user's question. Formulate a polite,
       results.sort((a, b) => a._hybridScore - b._hybridScore);
       results = results.slice(0, 30);
 
-      // Log the top 3 files retrieved so we can debug if the database found the right person!
-      const topSources = results.slice(0, 3).map(r => r.source).join(", ");
+      // Log the top 3 unique files retrieved so we can debug if the database found the right person!
+      const topSources = Array.from(new Set(results.map(r => r.source))).slice(0, 3).join(", ");
       console.log(`🔍 Retrieved top sources: ${topSources}`);
 
       // 4. RAG with Gemini
@@ -189,6 +211,7 @@ CRITICAL RULES FOR REASONING:
 5. DATA CLEANUP IS MANDATORY: You are powering a genealogy cleanup app. If ANY relevant information is missing for a matched person (e.g., unknown birth, unknown spouse), you MUST output a <cleanup> tag at the VERY END suggesting what to research next.
 6. LIVING PEOPLE EXCEPTION: If a person was born less than 110 years ago and has an "Unknown" death date, THEY ARE ALIVE. Their death info is NOT missing, it just hasn't happened yet! Do NOT mention death records in your <cleanup> tag.
 7. CURRENT DATE: Today's date is ${today}. You MUST use this to calculate current ages if asked.
+8. UNLINKED ORPHANS: Documents tagged "UNLINKED ORPHAN" or "PARTIALLY LINKED" contain people found in archival documents who are NOT YET in the family tree. If asked about missing people, list them!
 
 OUTPUT FORMAT:
 1. You MUST wrap your internal reasoning in <thinking> tags. 
@@ -218,9 +241,9 @@ FAMILY TREE DATA:\n${contextText}`),
       let uiAnswer = `${formattedContent}`;
       
       if (cleanupText) {
-        uiAnswer += `<div style="margin-top: 16px; padding: 12px 16px; background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 4px; font-size: 0.9em; color: #b45309; line-height: 1.5;">🧹 <b>Cleanup Suggestion:</b> ${cleanupText}</div>`;
+        uiAnswer += `<div class="cleanup-suggestion">🧹 <b>Cleanup Suggestion:</b> ${cleanupText}</div>`;
       }
-      uiAnswer += `<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(0,0,0,0.05); font-size: 0.85em; color: var(--text-muted);">📚 <b>Sources:</b> ${topSources.replace(/\.md/g, '').replace(/_/g, ' ')}</div>`;
+      uiAnswer += `<div class="answer-footer">📚 <b>Sources:</b> ${topSources.replace(/\.md/g, '').replace(/_/g, ' ')}</div>`;
       
       socket.emit("answer", uiAnswer);
       

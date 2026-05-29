@@ -106,7 +106,6 @@ button {
   cursor: pointer;
   transition: var(--transition);
   background-color: var(--bg-card);
-  min-width: 120px;
 }
 
 button:hover:not(:disabled) {
@@ -209,6 +208,46 @@ button:disabled {
   left: 24px;
   z-index: 1000;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Floating Root Person Widget (Bottom Right) */
+#root-person {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px 8px 8px;
+  border-radius: 30px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.root-details {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.root-label {
+  font-size: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+#root-name {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1;
 }
 
 /* Unified Main Chat Card Frame */
@@ -351,6 +390,25 @@ button:disabled {
   flex-direction: column;
 }
 
+/* AI Agent Message Footer Styles */
+.answer-footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0,0,0,0.05);
+  font-size: 0.65em;
+  color: var(--text-muted);
+}
+
+.cleanup-suggestion {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background-color: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  border-radius: 4px;
+  font-size: 0.7em;
+  color: #b45309;
+  line-height: 1.5;
+}
 .brand-title {
   font-size: 0.85rem;
   font-weight: 800;

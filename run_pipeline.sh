@@ -15,6 +15,9 @@ ROOT_ID="$2"
 DATA_DIR=$(dirname "$GEDCOM_FILE")
 FILTERED_GED="$DATA_DIR/family_tree_filtered_${ROOT_ID}.ged"
 PROFILES_DIR="$DATA_DIR/profiles_${ROOT_ID}"
+RAW_MEDIA_DIR="$DATA_DIR/raw_media_${ROOT_ID}"
+DB_PATH="$DATA_DIR/genealogy_${ROOT_ID}.db"
+VECTOR_DIR="$DATA_DIR/vector_store_${ROOT_ID}"
 
 echo "==========================================="
 echo "🧬 Genealogy Agent - Full Pipeline Run"
@@ -32,17 +35,23 @@ else
 fi
 python filter_tree.py --input "../$GEDCOM_FILE" --root-id "$ROOT_ID"
 
-echo -e "\n[2/4] Generating Profiles..."
+echo -e "\n[2/5] Generating Profiles..."
 python generate_profiles.py "../$FILTERED_GED"
 
-echo -e "\n[3/4] Building SQLite Database..."
+echo -e "\n[3/5] Building SQLite Database..."
 python build_sqlite.py "../$FILTERED_GED"
+
+echo -e "\n[4/5] (Optional) Processing Media..."
+if [ -d "../$RAW_MEDIA_DIR" ]; then
+    echo "Found $RAW_MEDIA_DIR directory, running OCR..."
+    python process_media.py --input-dir "../$RAW_MEDIA_DIR" --output-dir "../$PROFILES_DIR" --db-path "../$DB_PATH"
+fi
 deactivate
 cd ..
 
-echo -e "\n[4/4] Building Vector Database..."
+echo -e "\n[5/5] Building Vector Database..."
 cd server-node
-node build_index.js -i "../$PROFILES_DIR"
+node build_index.js -i "../$PROFILES_DIR" -o "../$VECTOR_DIR"
 cd ..
 
 echo -e "\n✅ Pipeline finished successfully! You can now start the server."
