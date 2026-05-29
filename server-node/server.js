@@ -82,21 +82,22 @@ io.on("connection", (socket) => {
       // 1. Intelligent Routing (SQL vs Vector)
       const routerResponse = await llm.invoke([
         new SystemMessage(`You are an intelligent routing assistant for a genealogy database.
-Decide if the user's question requires a SQL query or a Vector Database search.
 
-Use "sql" ONLY for global/aggregate math across the WHOLE family (e.g., "how many people total", "who had the most children", "who is the oldest").
-Use "vector" for ANY question about a SPECIFIC PERSON (e.g., "how many children did Steven have", "when was Katherine born", stories, biographies). The vector database handles speech-to-text phonetic misspellings of names much better than SQL exact matches.
-Use "vector" for questions about people "missing" from the tree, "unlinked" people, or "orphans". The vector database holds archival documents of people not yet in the tree, tagged with "UNLINKED ORPHAN" or "PARTIALLY LINKED". Use these exact tags as your vector search query!
+STEP 1: RESOLVE PRONOUNS
+Look at the RECENT CONVERSATION HISTORY. If the user uses pronouns ("he", "she", "they", "them", "his", "her", "their"), you MUST replace the pronoun with the specific person's full name from the previous turn before routing!
+
+STEP 2: CHOOSE THE ROUTE
+- Use "sql" for global/aggregate math AND for counting specific metrics that exist in the database (e.g., "how many children did Steven have", "how many siblings does Michael have").
+- Use "vector" for biographies, dates, locations, stories, or missing information about a specific person (e.g., "when was Katherine born", "do we have all of Michael Shaheen's info").
+- Use "vector" WITH EXACT QUERY "UNLINKED ORPHAN" ONLY IF the user asks broad questions about people "not in the tree", "orphans", or "anyone missing from our tree". NEVER use "UNLINKED ORPHAN" if the user is asking about a specific known person.
 
 The SQLite database has two tables:
 1. 'individuals': id TEXT, full_name TEXT, first_name TEXT, last_name TEXT, gender TEXT, birth_date TEXT, birth_year INTEGER, death_date TEXT, death_year INTEGER, child_count INTEGER, spouse_count INTEGER, sibling_count INTEGER
 2. 'families': family_id TEXT, husband_id TEXT, husband_name TEXT, wife_id TEXT, wife_name TEXT, marriage_date TEXT, marriage_year INTEGER, divorce_date TEXT, divorce_year INTEGER, child_count INTEGER
-If you must use SQL to search by name, ALWAYS use LIKE with wildcards (e.g., first_name LIKE '%Steven%') to account for misspellings.
+If you must use SQL to search by name, ALWAYS use the full_name column with LIKE and wildcards (e.g., full_name LIKE '%Steven%') to account for misspellings. Do not split names into first_name and last_name.
 
 RECENT CONVERSATION HISTORY:
 ${historyText}
-
-IMPORTANT: If the user uses pronouns (he/she/that) or answers a clarification (e.g., "yes"), use the Conversation History to figure out exactly who or what they mean, and include the full name/topic in your vector search query or SQL query.
 
 Respond ONLY with a valid JSON object. Do not include markdown formatting.
 {
@@ -135,12 +136,13 @@ Assume the SQL results correctly answer the user's question. Formulate a polite,
             new HumanMessage(text),
           ]);
 
-          console.log(`💡 Answer: ${aiResponse.content}`);
-          const uiAnswer = `${aiResponse.content}<div class="answer-footer">⚙️ <b>Ran SQL:</b> <code>${route.query}</code></div>`;
+          const sqlAnswerText = typeof aiResponse.content === 'string' ? aiResponse.content : (Array.isArray(aiResponse.content) ? aiResponse.content.map(p => p.text || '').join('') : String(aiResponse.content));
+          console.log(`💡 Answer: ${sqlAnswerText}`);
+          const uiAnswer = `${sqlAnswerText}<div class="answer-footer">⚙️ <b>Ran SQL:</b> <code>${route.query}</code></div>`;
           socket.emit("answer", uiAnswer);
           
           chatHistory.push({ role: "user", content: text });
-          chatHistory.push({ role: "assistant", content: aiResponse.content });
+          chatHistory.push({ role: "assistant", content: sqlAnswerText });
           if (chatHistory.length > 10) chatHistory.splice(0, chatHistory.length - 10);
         } catch (err) {
           console.error("SQL Execution Error:", err.message);
@@ -226,10 +228,11 @@ FAMILY TREE DATA:\n${contextText}`),
         new HumanMessage(text),
       ]);
 
-      console.log(`💡 Raw AI Output:\n${aiResponse.content}`);
+      const rawContent = typeof aiResponse.content === 'string' ? aiResponse.content : (Array.isArray(aiResponse.content) ? aiResponse.content.map(p => p.text || '').join('') : String(aiResponse.content));
+      console.log(`💡 Raw AI Output:\n${rawContent}`);
       
       // Remove thinking block first so we don't accidentally extract <cleanup> tags from the AI's internal monologue!
-      let cleanContent = aiResponse.content.replace(/<thinking>[\s\S]*?<\/thinking>\n*/gi, '');
+      let cleanContent = rawContent.replace(/<thinking>[\s\S]*?<\/thinking>\n*/gi, '');
       
       const cleanupMatch = cleanContent.match(/<cleanup>([\s\S]*?)<\/cleanup>/i);
       const cleanupText = cleanupMatch ? cleanupMatch[1].trim() : null;
