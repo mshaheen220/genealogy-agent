@@ -3,8 +3,8 @@
   --bg-card: #ffffff;
   --text-main: #1e293b;
   --text-muted: #64748b;
-  --color-primary: #10b981;       /* Sleek Green */
-  --color-primary-light: #e6fcf5; /* Mockup light green background */
+  --color-primary: #1887a0;       /* Sleek Green */
+  --color-primary-light: #e6f8fc; /* Mockup light green background */
   --color-secondary: #2563eb;     /* Blue for 'You' */
   --border-radius: 12px;
   --transition: all 0.2s ease-in-out;
@@ -139,7 +139,7 @@ button:active:not(:disabled) {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #ef4444; /* Red for off/stopped */
+  background-color: #be3118; /* Red for off/stopped */
   transition: .4s;
 }
 
@@ -156,7 +156,7 @@ button:active:not(:disabled) {
 }
 
 input:checked + .slider {
-  background-color: var(--color-primary); /* Green for on/listening */
+  background-color: #18be58; /* Green for on/listening */
 }
 
 input:focus + .slider {
@@ -210,21 +210,11 @@ button:disabled {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-/* Floating Root Person Widget (Bottom Right) */
+/* Root Person Header Widget */
 #root-person {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  background-color: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  padding: 8px 16px 8px 8px;
-  border-radius: 30px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  padding: 6px 12px;
 }
 
 .root-details {
@@ -234,7 +224,7 @@ button:disabled {
 }
 
 .root-label {
-  font-size: 0.5rem;
+  font-size: 0.55rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -244,7 +234,7 @@ button:disabled {
 }
 
 #root-name {
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--text-main);
   line-height: 1;
@@ -295,7 +285,7 @@ button:disabled {
 }
 
 .msg .user {
-  color: var(--color-secondary);
+  color: var(--color-primary);
 }
 
 .msg .ai {
@@ -374,6 +364,34 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-btn {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--border-radius);
+  border: 1px solid #e2e8f0;
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.header-btn:hover {
+  background-color: #f8fafc;
+}
+
+.header-btn.icon-btn {
+  padding: 8px 10px;
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 .header-logo {

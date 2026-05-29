@@ -7,6 +7,9 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon/apple-touch-icon.png">
   <link rel="shortcut icon" href="/images/favicon/favicon.ico">
   <link rel="manifest" href="/images/favicon/site.webmanifest">
+  <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale.css" />
+  <script src="https://unpkg.com/@popperjs/core@2"></script>
+  <script src="https://unpkg.com/tippy.js@6"></script>
   <script src="/socket.io/socket.io.js"></script>
   <link rel="stylesheet" href="/styles/main.css">
 </head>
@@ -20,7 +23,15 @@
         <span class="brand-subtitle">GENEALOGY AGENT</span>
       </div>
     </div>
-    <div class="header-right"></div>
+    <div class="header-right">
+      <div id="root-person">
+        <div class="root-details">
+          <span class="root-label">Family of</span>
+          <span id="root-name">Loading...</span>
+        </div>
+      </div>
+    <button id="exportBtn" class="header-btn icon-btn" data-tippy-content="Export Chat Transcript">💾</button>
+    </div>
   </header>
 
   <main class="app-container">
@@ -29,11 +40,11 @@
         
     <div class="input-row">
       <input type="text" id="textInput" placeholder="Type a question about your family tree..." autocomplete="off" />
-      <button id="sendBtn" aria-label="Ask question" title="Ask">✨</button>
+      <button id="sendBtn" aria-label="Ask question" data-tippy-content="Ask">✨</button>
     </div>
 
         <div class="controls-row">
-      <label class="switch" title="Toggle Microphone">
+      <label class="switch" data-tippy-content="Start Listening">
         <input type="checkbox" id="micToggleCheckbox">
         <span class="slider round"></span>
       </label>
@@ -48,13 +59,6 @@
 
   <div id="status">Ready...</div>
 
-  <div id="root-person">
-    <div class="root-details">
-      <span class="root-label">Family of</span>
-      <span id="root-name">Loading...</span>
-    </div>
-  </div>
-
   <script>
   const socket = io();
   
@@ -64,6 +68,10 @@
   const chatDiv = document.getElementById("chat");
   const textInput = document.getElementById("textInput");
   const sendBtn = document.getElementById("sendBtn");
+  const exportBtn = document.getElementById("exportBtn");
+
+  // Initialize tooltips for static UI elements
+  tippy('[data-tippy-content]', { animation: 'scale' });
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const recognition = new SpeechRecognition();
@@ -76,16 +84,18 @@
       socket.emit("transcription", text);
       status.innerText = `Processing...`;
       
+      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       const pairId = 'pair-' + Date.now();
       const pairHTML = `
-        <div class="conversation-pair" id="${pairId}">
-          <div class="msg user-msg"><span class="user">You:</span> ${text}</div>
-          <div class="msg ai-loading"><span class="ai">Agent:</span> <em>Thinking...</em></div>
+        <div class="conversation-pair" id="${pairId}" data-timestamp="${timestamp}">
+          <div class="msg user-msg"><span class="user" data-tippy-content="${timestamp}">You:</span> ${text}</div>
+          <div class="msg ai-loading"><span class="ai" data-tippy-content="Processing...">Agent:</span> <em>Thinking...</em></div>
         </div>
       `;
       
       chatDiv.insertAdjacentHTML('beforeend', pairHTML);
       chatDiv.scrollTop = chatDiv.scrollHeight;
+      tippy(`#${pairId} [data-tippy-content]`, { animation: 'scale' });
     }
   }
 
@@ -101,6 +111,7 @@
     isListening = false;
     micToggleCheckbox.checked = false;
     micToggleLabel.innerText = "Microphone Off";
+    if (micToggleCheckbox.parentElement._tippy) micToggleCheckbox.parentElement._tippy.setContent("Start Listening");
     status.innerText = "Stopped.";
   };
 
@@ -125,18 +136,23 @@
   socket.on("answer", (answer) => {
     // Locate the very last thinking message in the DOM
     const loadingMsgs = document.getElementsByClassName("ai-loading");
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
     if (loadingMsgs.length > 0) {
       const lastLoadingMsg = loadingMsgs[loadingMsgs.length - 1];
-      lastLoadingMsg.innerHTML = `<span class="ai">Agent:</span> ${answer}`;
+      lastLoadingMsg.innerHTML = `<span class="ai" data-tippy-content="${timestamp}">Agent:</span> ${answer}`;
       lastLoadingMsg.classList.remove("ai-loading");
+      tippy(lastLoadingMsg.querySelector('.ai'), { animation: 'scale' });
     } else {
       // Fallback: If no loader is found, wrap it safely in a pair container
+      const fallbackId = 'pair-fb-' + Date.now();
       const fallbackHTML = `
-        <div class="conversation-pair">
-          <div class="msg"><span class="ai">Agent:</span> ${answer}</div>
+        <div class="conversation-pair" id="${fallbackId}" data-timestamp="${timestamp}">
+          <div class="msg"><span class="ai" data-tippy-content="${timestamp}">Agent:</span> ${answer}</div>
         </div>
       `;
       chatDiv.insertAdjacentHTML('beforeend', fallbackHTML);
+      tippy(`#${fallbackId} [data-tippy-content]`, { animation: 'scale' });
     }
     chatDiv.scrollTop = chatDiv.scrollHeight;
 
@@ -150,6 +166,7 @@
 
   socket.on("root-info", (data) => {
     document.getElementById("root-name").innerText = data.name;
+    document.getElementById("root-name").setAttribute("data-id", data.id);
   });
 
   micToggleCheckbox.addEventListener("change", (e) => {
@@ -159,14 +176,56 @@
         isListening = true;
         micToggleLabel.innerText = "Microphone On";
         status.innerText = "🔴 Listening and streaming...";
+        if (micToggleCheckbox.parentElement._tippy) micToggleCheckbox.parentElement._tippy.setContent("Stop Listening");
       } catch (err) {
         console.error("Error accessing microphone:", err);
         status.innerText = "Error accessing microphone. Check browser permissions.";
         micToggleCheckbox.checked = false;
+        if (micToggleCheckbox.parentElement._tippy) micToggleCheckbox.parentElement._tippy.setContent("Start Listening");
       }
     } else {
       recognition.stop();
+      if (micToggleCheckbox.parentElement._tippy) micToggleCheckbox.parentElement._tippy.setContent("Start Listening");
     }
+  });
+
+  exportBtn.addEventListener("click", () => {
+    const pairs = document.querySelectorAll(".conversation-pair");
+    if (pairs.length === 0) {
+      alert("The conversation is empty. Ask a question first!");
+      return;
+    }
+
+    const rootName = document.getElementById("root-name").innerText;
+    const rootId = document.getElementById("root-name").getAttribute("data-id") || "Unknown ID";
+    const currentDate = new Date().toLocaleDateString();
+
+    let transcript = "Gene E. - Genealogy Agent Transcript\n";
+    transcript += `Date: ${currentDate}\n`;
+    transcript += `Tree Subject: ${rootName} (${rootId})\n`;
+    transcript += "====================================\n\n";
+
+    pairs.forEach(pair => {
+      const userMsg = pair.querySelector(".user-msg");
+      const aiMsg = pair.querySelector(".msg:not(.user-msg)");
+      const timestamp = pair.getAttribute("data-timestamp") || new Date().toLocaleTimeString();
+      
+      transcript += `[${timestamp}]\n`;
+      if (userMsg) transcript += userMsg.innerText + "\n\n";
+      if (aiMsg) transcript += aiMsg.innerText + "\n\n";
+      transcript += "------------------------------------\n\n";
+    });
+
+    const blob = new Blob([transcript], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const dateStr = new Date().toISOString().slice(0, 10);
+    a.download = `Genealogy_Transcript_${dateStr}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   });
 </script>
 </body>
