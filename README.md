@@ -53,6 +53,20 @@ This script parses the GEDCOM file and extracts structured data (names, dates, c
 python build_sqlite.py ../data/family_tree_filtered_I412076094635.ged
 ```
 
+### 4. Process Media & OCR (process_media.py) 
+
+This script uses the Google Gemini API to perform Optical Character Recognition (OCR) on historical documents and images (JPG, PNG, PDF) from a specified directory (e.g., data/raw_media_I412076094635). It includes a Triage Agent that evaluates if a document is genealogically relevant before processing. 
+
+If a document is relevant, the script transcribes it, scrubs out boilerplate text (like copyright notices), performs entity resolution to link mentioned people to their GEDCOM IDs from the SQLite database, and saves the output as a new Markdown file alongside the other profiles. Unmatched documents are automatically flagged as UNLINKED ORPHAN. 
+
+Setup: 
+This script requires your GOOGLE_API_KEY. Ensure it is in your .env file at the project root or in the server-node/ directory. 
+
+Usage: 
+```bash 
+python process_media.py --input-dir ../data/raw_media_I412076094635 --output-dir ../data/profiles_I412076094635 --db-path ../data/genealogy_I412076094635.db
+```
+
 ## Node.js RAG Pipeline Setup
 
 Ensure you have Node.js installed.
