@@ -227,9 +227,9 @@ def main():
     data_dir = Path(args.data_dir)
     root_id = args.root_id
     
-    input_dir = data_dir / f"raw_media_{root_id}"
-    output_dir = data_dir / f"docs_{root_id}"
-    db_path = data_dir / f"genealogy_{root_id}.db"
+    input_dir = data_dir / root_id / "raw_media"
+    output_dir = data_dir / root_id / "docs"
+    db_path = data_dir / root_id / "genealogy.db"
 
     if not input_dir.exists():
         raise FileNotFoundError(f"Input directory not found: {input_dir}")

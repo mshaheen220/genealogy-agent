@@ -32,9 +32,9 @@ if (!rootId) {
 async function initAI() {
   console.log(`Loading AI model & connecting to Databases for ROOT_ID: ${rootId}...`);
   generateEmbedding = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
-  const db = await lancedb.connect(path.resolve(`../data/vector_store_${rootId}`));
+  const db = await lancedb.connect(path.resolve(`../data/${rootId}/vector_store`));
   dbTable = await db.openTable("genealogy_profiles");
-  dbSql = new DatabaseSync(path.resolve(`../data/genealogy_${rootId}.db`));
+  dbSql = new DatabaseSync(path.resolve(`../data/${rootId}/genealogy.db`));
   
   // Ensure the cleanup_suggestions table exists
   dbSql.exec(`

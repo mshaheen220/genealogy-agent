@@ -21,10 +21,10 @@ async function run() {
   const rootId = options.rootId;
 
   const inputDirs = [
-    path.join(dataDir, `profiles_${rootId}`),
-    path.join(dataDir, `docs_${rootId}`)
+    path.join(dataDir, rootId, "profiles"),
+    path.join(dataDir, rootId, "docs")
   ];
-  const outputDir = path.join(dataDir, `vector_store_${rootId}`);
+  const outputDir = path.join(dataDir, rootId, "vector_store");
 
   const splitter = new RecursiveCharacterTextSplitter({
     chunkSize: 1000,

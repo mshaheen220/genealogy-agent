@@ -1,6 +1,5 @@
 import argparse
 import sqlite3
-import re
 from pathlib import Path
 
 # Reuse the robust extraction logic we already built!
@@ -12,9 +11,7 @@ def main():
     args = parser.parse_args()
 
     gedcom_path = Path(args.gedcom_path)
-    match = re.search(r"family_tree_filtered_([A-Za-z0-9@_]+)\.ged", gedcom_path.name)
-    root_id = match.group(1) if match else "default"
-    db_path = gedcom_path.parent / f"genealogy_{root_id}.db"
+    db_path = gedcom_path.parent / "genealogy.db"
 
     print(f"Reading GEDCOM data from {gedcom_path}...")
     rels = collect_relationships(gedcom_path)
