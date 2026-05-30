@@ -53,20 +53,6 @@ This script parses the GEDCOM file and extracts structured data (names, dates, c
 python build_sqlite.py ../data/family_tree_filtered_I412076094635.ged
 ```
 
-### 4. Process Media & OCR (process_media.py) 
-
-This script uses the Google Gemini API to perform Optical Character Recognition (OCR) on historical documents and images (JPG, PNG, PDF) from a specified directory (e.g., data/raw_media_I412076094635). It includes a Triage Agent that evaluates if a document is genealogically relevant before processing. 
-
-If a document is relevant, the script transcribes it, scrubs out boilerplate text (like copyright notices), performs entity resolution to link mentioned people to their GEDCOM IDs from the SQLite database, and saves the output as a new Markdown file alongside the other profiles. Unmatched documents are automatically flagged as UNLINKED ORPHAN. 
-
-Setup: 
-This script requires your GOOGLE_API_KEY. Ensure it is in your .env file at the project root or in the server-node/ directory. 
-
-Usage: 
-```bash 
-python process_media.py --input-dir ../data/raw_media_I412076094635 --output-dir ../data/profiles_I412076094635 --db-path ../data/genealogy_I412076094635.db
-```
-
 ## Node.js RAG Pipeline Setup
 
 Ensure you have Node.js installed.
@@ -113,14 +99,10 @@ The backend features a Dual-Brain Routing Architecture:
 - Vector Search (LanceDB): Uses a custom Hybrid Search (Vector + Keyword) to find specific biographies, stories, and transcriptions, robustly handling phonetic misspellings from speech-to-text. 
 - Structured Data (SQLite): Dynamically writes and executes SQL queries to accurately answer aggregate or global questions (e.g., "who had the most children?"). 
 
-
-#### Export Chat:
-The agent also maintains Conversation Memory for follow-up questions and provides Source Citations directly in the chat UI, showing exactly which files or SQL queries it used to formulate the answer. 
-
-#### Triage Dashboard:
 The agent also acts as a proactive research assistant, identifying missing information or rich facts from documents and creating actionable tasks. These tasks are saved persistently to SQLite and can be tracked, managed, and marked as completed via the slide-out **🧹 Triage Dashboard** in the Web UI.
 
-#### Usage: 
+The agent also maintains Conversation Memory for follow-up questions and provides Source Citations directly in the chat UI, showing exactly which files or SQL queries it used to formulate the answer. 
+Usage: 
 Start the server: 
 ```bash
 ROOT_ID=I412076094635 node server.js 
@@ -133,5 +115,3 @@ Instead of running the Python and Node scripts individually, you can automatical
 ```bash
 ./run_pipeline.sh data/tree.ged I412076094635
 ```
-
-You are now ready to query the index, startup the server and use the chat, or use the normalized data as you see fit.

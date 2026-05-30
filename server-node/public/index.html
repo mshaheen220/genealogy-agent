@@ -30,6 +30,7 @@
           <span id="root-name">Loading...</span>
         </div>
       </div>
+      <button id="cleanupBtn" class="header-btn icon-btn" data-tippy-content="Triage Dashboard">🧹</button>
     <button id="exportBtn" class="header-btn icon-btn" data-tippy-content="Export Chat Transcript">💾</button>
     </div>
   </header>
@@ -59,6 +60,18 @@
 
   <div id="status">Ready...</div>
 
+  <!-- Slide-out Triage Dashboard -->
+  <div id="drawerOverlay" class="drawer-overlay"></div>
+  <div id="cleanupDrawer" class="drawer">
+    <div class="drawer-header">
+      <h2>🧹 Triage Dashboard</h2>
+      <button id="closeDrawerBtn" class="header-btn icon-btn" data-tippy-content="Close">✖</button>
+    </div>
+    <div id="cleanupList" class="drawer-content">
+      <!-- Cleanup cards will be injected here -->
+    </div>
+  </div>
+
   <script>
   const socket = io();
   
@@ -69,6 +82,11 @@
   const textInput = document.getElementById("textInput");
   const sendBtn = document.getElementById("sendBtn");
   const exportBtn = document.getElementById("exportBtn");
+  const cleanupBtn = document.getElementById("cleanupBtn");
+  const closeDrawerBtn = document.getElementById("closeDrawerBtn");
+  const cleanupDrawer = document.getElementById("cleanupDrawer");
+  const drawerOverlay = document.getElementById("drawerOverlay");
+  const cleanupList = document.getElementById("cleanupList");
 
   // Initialize tooltips for static UI elements
   tippy('[data-tippy-content]', { animation: 'scale' });
@@ -226,6 +244,48 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  });
+
+  // Drawer Logic
+  function toggleDrawer(show) {
+    if (show) {
+      cleanupDrawer.classList.add("open");
+      drawerOverlay.classList.add("open");
+      socket.emit("get-cleanups"); // Fetch latest data
+    } else {
+      cleanupDrawer.classList.remove("open");
+      drawerOverlay.classList.remove("open");
+    }
+  }
+
+  cleanupBtn.addEventListener("click", () => toggleDrawer(true));
+  closeDrawerBtn.addEventListener("click", () => toggleDrawer(false));
+  drawerOverlay.addEventListener("click", () => toggleDrawer(false));
+
+  socket.on("cleanups-data", (data) => {
+    cleanupList.innerHTML = "";
+    if (data.length === 0) {
+      cleanupList.innerHTML = "<p style='color: var(--text-muted); text-align: center; margin-top: 20px;'>No pending cleanups! 🎉</p>";
+      return;
+    }
+    data.forEach(item => {
+      const date = new Date(item.timestamp).toLocaleString();
+      const isCompleted = item.completed === 1;
+      const btnIcon = isCompleted ? '↩️' : '✅';
+      const btnTip = isCompleted ? 'Mark as Pending' : 'Mark as Done';
+      
+      const div = document.createElement("div");
+      div.className = `cleanup-card ${isCompleted ? 'completed' : ''}`;
+      div.innerHTML = `
+        <div class="cleanup-card-header">
+          <span class="cleanup-date">${date}</span>
+          <button class="header-btn icon-btn" onclick="socket.emit('toggle-cleanup', { id: ${item.id}, completed: ${isCompleted ? 0 : 1} })" data-tippy-content="${btnTip}" style="padding: 4px; font-size: 0.8rem; border-color: transparent; background: transparent;">${btnIcon}</button>
+        </div>
+        <div class="cleanup-card-text">${item.suggestion}</div>
+      `;
+      cleanupList.appendChild(div);
+    });
+    tippy('#cleanupList [data-tippy-content]', { animation: 'scale' });
   });
 </script>
 </body>

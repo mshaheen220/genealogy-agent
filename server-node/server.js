@@ -35,6 +35,22 @@ async function initAI() {
   const db = await lancedb.connect(path.resolve(`../data/vector_store_${rootId}`));
   dbTable = await db.openTable("genealogy_profiles");
   dbSql = new DatabaseSync(path.resolve(`../data/genealogy_${rootId}.db`));
+  
+  // Ensure the cleanup_suggestions table exists
+  dbSql.exec(`
+    CREATE TABLE IF NOT EXISTS cleanup_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT,
+      suggestion TEXT,
+      completed INTEGER DEFAULT 0
+    )
+  `);
+  
+  // Safely migrate existing databases to include the new column
+  try {
+    dbSql.exec("ALTER TABLE cleanup_suggestions ADD COLUMN completed INTEGER DEFAULT 0");
+  } catch (e) { /* Column likely already exists, safe to ignore */ }
+
   llm = new ChatGoogleGenerativeAI({
     model: "gemini-2.5-flash-lite",
     temperature: 0,
@@ -65,6 +81,29 @@ io.on("connection", (socket) => {
     socket.emit("root-info", { id: rootId, name: rootName });
   };
   if (dbSql) sendRootInfo(); else setTimeout(sendRootInfo, 2000);
+
+  // Triage Dashboard Listeners
+  socket.on("get-cleanups", () => {
+    if (!dbSql) return;
+    try {
+      const rows = dbSql.prepare("SELECT * FROM cleanup_suggestions ORDER BY completed ASC, timestamp DESC").all();
+      socket.emit("cleanups-data", rows);
+    } catch (e) {
+      console.error("Error fetching cleanups:", e.message);
+    }
+  });
+
+  socket.on("toggle-cleanup", (data) => {
+    if (!dbSql) return;
+    try {
+      dbSql.prepare("UPDATE cleanup_suggestions SET completed = ? WHERE id = ?").run(data.completed, data.id);
+      // Emit the fresh list back to the client immediately
+      const rows = dbSql.prepare("SELECT * FROM cleanup_suggestions ORDER BY completed ASC, timestamp DESC").all();
+      socket.emit("cleanups-data", rows);
+    } catch (e) {
+      console.error("Error toggling cleanup:", e.message);
+    }
+  });
 
   socket.on("transcription", async (text) => {
     console.log(`\n🗣️  User said: "${text}"`);
@@ -244,6 +283,16 @@ FAMILY TREE DATA:\n${contextText}`),
       let uiAnswer = `${formattedContent}`;
       
       if (cleanupText) {
+        // Save the suggestion persistently to the SQLite database
+        try {
+          const existing = dbSql.prepare("SELECT id FROM cleanup_suggestions WHERE suggestion = ? LIMIT 1").get(cleanupText);
+          if (!existing) {
+            const insertStmt = dbSql.prepare("INSERT INTO cleanup_suggestions (timestamp, suggestion) VALUES (?, ?)");
+            insertStmt.run(new Date().toISOString(), cleanupText);
+          }
+        } catch (e) {
+          console.error("Error saving cleanup suggestion to database:", e.message);
+        }
         uiAnswer += `<div class="cleanup-suggestion">🧹 <b>Cleanup Suggestion:</b> ${cleanupText}</div>`;
       }
       uiAnswer += `<div class="answer-footer">📚 <b>Sources:</b> ${topSources.replace(/\.md/g, '').replace(/_/g, ' ')}</div>`;
