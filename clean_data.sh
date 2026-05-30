@@ -4,6 +4,7 @@ echo "🧹 Sweeping away generated data files..."
 
 rm -rf data/family_tree_filtered_*.ged
 rm -rf data/profiles_*
+rm -rf data/docs_*
 rm -rf data/genealogy_*.db
 rm -rf data/vector_store_*
 rm -f data/raw_media_*/.processed_log.txt

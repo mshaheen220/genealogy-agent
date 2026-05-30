@@ -180,10 +180,8 @@ def process_media_file(file_path: Path, db_path: Path, output_dir: Path) -> bool
             print(f"  - ⚠️ Warning: Conflict audit failed. {e}")
 
     # --- Markdown Generation ---
-    doc_date = data.get('date', 'Unknown Date')
-    people_names = data.get('people', [])
-    if not people_names:
-        people_names = ['Unknown_Person']
+    doc_date = data.get('date') or 'Unknown Date'
+    people_names = data.get('people') or ['Unknown_Person']
     
     # Use only the first person to keep filenames manageable
     primary_person = make_safe_filename(people_names[0])
@@ -206,7 +204,7 @@ def process_media_file(file_path: Path, db_path: Path, output_dir: Path) -> bool
 {status_line}
 - **Tagged People:** {tagged_people_str or "None"}
 - **Document Date:** {doc_date}
-- **Document Location:** {data.get('location', 'Unknown')}
+- **Document Location:** {data.get('location') or 'Unknown'}
 {conflicts_text}
 
 ## Transcription
@@ -222,14 +220,16 @@ def process_media_file(file_path: Path, db_path: Path, output_dir: Path) -> bool
 
 def main():
     parser = argparse.ArgumentParser(description="Process media files for genealogy using AI.")
-    parser.add_argument("--input-dir", required=True, help="Directory containing raw media files (images, PDFs).")
-    parser.add_argument("--output-dir", required=True, help="Directory to save the generated Markdown files.")
-    parser.add_argument("--db-path", required=True, help="Path to the genealogy.db SQLite file.")
+    parser.add_argument("--data-dir", required=True, help="Base directory containing the data folders.")
+    parser.add_argument("--root-id", required=True, help="The root ID for the current lineage.")
     args = parser.parse_args()
 
-    input_dir = Path(args.input_dir)
-    output_dir = Path(args.output_dir)
-    db_path = Path(args.db_path)
+    data_dir = Path(args.data_dir)
+    root_id = args.root_id
+    
+    input_dir = data_dir / f"raw_media_{root_id}"
+    output_dir = data_dir / f"docs_{root_id}"
+    db_path = data_dir / f"genealogy_{root_id}.db"
 
     if not input_dir.exists():
         raise FileNotFoundError(f"Input directory not found: {input_dir}")

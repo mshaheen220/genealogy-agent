@@ -88,9 +88,9 @@ Ensure you have Node.js installed.
 This script reads the generated Markdown profiles, chunks them, and embeds them entirely locally using `@xenova/transformers` (`all-MiniLM-L6-v2`). The embeddings are stored in a local LanceDB vector database for blazing-fast semantic search without sending your private family data to an external embedding API.
 
 **Usage:**
-Pass the path of the generated profiles directory:
+Pass the data directory and root ID:
 ```bash
-node build_index.js -i ../data/profiles_I412076094635 -o ../data/vector_store_I412076094635
+node build_index.js --data-dir ../data --root-id I412076094635
 ```
 
 ### 2. Query & Generate Answers (`query_index.js`)

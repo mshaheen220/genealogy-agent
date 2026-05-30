@@ -10,43 +10,55 @@ import fs from "fs";
 // 1. Parse command-line arguments dynamically
 const program = new Command();
 program
-  .requiredOption("-i, --input <path>", "Relative path to the directory containing Markdown profiles")
-  .option("-o, --output <path>", "Relative path to store the LanceDB vector database", "../data/vector_store")
+  .requiredOption("-d, --data-dir <path>", "Base directory containing the data folders")
+  .requiredOption("-r, --root-id <id>", "The root ID for the current lineage")
   .parse(process.argv);
 
 const options = program.opts();
 
 async function run() {
-  const inputDir = path.resolve(options.input);
-  const outputDir = path.resolve(options.output);
+  const dataDir = path.resolve(options.dataDir);
+  const rootId = options.rootId;
 
-  if (!fs.existsSync(inputDir)) {
-    console.error(`Error: Input directory does not exist: ${inputDir}`);
-    process.exit(1);
-  }
+  const inputDirs = [
+    path.join(dataDir, `profiles_${rootId}`),
+    path.join(dataDir, `docs_${rootId}`)
+  ];
+  const outputDir = path.join(dataDir, `vector_store_${rootId}`);
 
-  console.log(`Loading Markdown profiles from: ${inputDir}`);
-
-  // 2. Find all markdown files in the target directory
-  const files = fs.readdirSync(inputDir).filter(f => f.endsWith(".md"));
-  console.log(`Loaded ${files.length} profile documents.`);
-
-  // 3. Load and chunk the Markdown files into semantic search pieces
   const splitter = new RecursiveCharacterTextSplitter({
     chunkSize: 1000,
     chunkOverlap: 200,
   });
 
   const chunkedDocs = [];
-  for (const file of files) {
-    const filePath = path.join(inputDir, file);
-    const text = fs.readFileSync(filePath, "utf-8");
-    if (text.trim().length === 0) continue; // Skip empty files
-    const chunks = await splitter.createDocuments([text], [{ source: file }]);
-    
-    // Filter out any empty chunks that might break vector inference
-    chunkedDocs.push(...chunks.filter(c => c.pageContent.trim().length > 0));
+  
+  for (const inputDir of inputDirs) {
+    if (!fs.existsSync(inputDir)) {
+      console.log(`⚠️  Directory does not exist (skipping): ${inputDir}`);
+      continue;
+    }
+
+    console.log(`Loading Markdown files from: ${inputDir}`);
+    const files = fs.readdirSync(inputDir).filter(f => f.endsWith(".md"));
+    console.log(`Loaded ${files.length} documents from ${path.basename(inputDir)}.`);
+
+    for (const file of files) {
+      const filePath = path.join(inputDir, file);
+      const text = fs.readFileSync(filePath, "utf-8");
+      if (text.trim().length === 0) continue; // Skip empty files
+      const chunks = await splitter.createDocuments([text], [{ source: file }]);
+      
+      // Filter out any empty chunks that might break vector inference
+      chunkedDocs.push(...chunks.filter(c => c.pageContent.trim().length > 0));
+    }
   }
+
+  if (chunkedDocs.length === 0) {
+    console.error("Error: No valid markdown chunks found across provided directories.");
+    process.exit(1);
+  }
+
   console.log(`Split profiles into ${chunkedDocs.length} valid vectorized chunks.`);
 
   // 4. Initialize Local Embeddings (No API Key Required!)

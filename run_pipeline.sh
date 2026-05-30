@@ -16,6 +16,7 @@ DATA_DIR=$(dirname "$GEDCOM_FILE")
 FILTERED_GED="$DATA_DIR/family_tree_filtered_${ROOT_ID}.ged"
 PROFILES_DIR="$DATA_DIR/profiles_${ROOT_ID}"
 RAW_MEDIA_DIR="$DATA_DIR/raw_media_${ROOT_ID}"
+DOCS_DIR="$DATA_DIR/docs_${ROOT_ID}"
 DB_PATH="$DATA_DIR/genealogy_${ROOT_ID}.db"
 VECTOR_DIR="$DATA_DIR/vector_store_${ROOT_ID}"
 
@@ -44,14 +45,14 @@ python build_sqlite.py "../$FILTERED_GED"
 echo -e "\n[4/5] (Optional) Processing Media..."
 if [ -d "../$RAW_MEDIA_DIR" ]; then
     echo "Found $RAW_MEDIA_DIR directory, running OCR..."
-    python process_media.py --input-dir "../$RAW_MEDIA_DIR" --output-dir "../$PROFILES_DIR" --db-path "../$DB_PATH"
+    python process_media.py --data-dir "../$DATA_DIR" --root-id "$ROOT_ID"
 fi
 deactivate
 cd ..
 
 echo -e "\n[5/5] Building Vector Database..."
 cd server-node
-node build_index.js -i "../$PROFILES_DIR" -o "../$VECTOR_DIR"
+node build_index.js --data-dir "../$DATA_DIR" --root-id "$ROOT_ID"
 cd ..
 
 echo -e "\n✅ Pipeline finished successfully! You can now start the server."
