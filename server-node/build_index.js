@@ -10,7 +10,7 @@ import fs from "fs";
 // 1. Parse command-line arguments dynamically
 const program = new Command();
 program
-  .requiredOption("-d, --data-dir <path>", "Base directory containing the data folders")
+  .option("-d, --data-dir <path>", "Base directory containing the data folders", "../data")
   .requiredOption("-r, --root-id <id>", "The root ID for the current lineage")
   .parse(process.argv);
 

@@ -220,7 +220,7 @@ def process_media_file(file_path: Path, db_path: Path, output_dir: Path) -> bool
 
 def main():
     parser = argparse.ArgumentParser(description="Process media files for genealogy using AI.")
-    parser.add_argument("--data-dir", required=True, help="Base directory containing the data folders.")
+    parser.add_argument("--data-dir", default="../data", help="Base directory containing the data folders.")
     parser.add_argument("--root-id", required=True, help="The root ID for the current lineage.")
     args = parser.parse_args()
 

@@ -279,7 +279,10 @@
       div.innerHTML = `
         <div class="cleanup-card-header">
           <span class="cleanup-date">${date}</span>
-          <button class="header-btn icon-btn" onclick="socket.emit('toggle-cleanup', { id: ${item.id}, completed: ${isCompleted ? 0 : 1} })" data-tippy-content="${btnTip}" style="padding: 4px; font-size: 0.8rem; border-color: transparent; background: transparent;">${btnIcon}</button>
+          <div class="cleanup-actions">
+            <button class="header-btn icon-btn" onclick="socket.emit('toggle-cleanup', { id: ${item.id}, completed: ${isCompleted ? 0 : 1} })" data-tippy-content="${btnTip}" style="padding: 4px; font-size: 0.8rem; border-color: transparent; background: transparent;">${btnIcon}</button>
+            <button class="header-btn icon-btn" onclick="if(confirm('Are you sure you want to permanently delete this suggestion?')) socket.emit('delete-cleanup', ${item.id})" data-tippy-content="Delete Permanently" style="padding: 4px; font-size: 0.8rem; border-color: transparent; background: transparent;">🗑️</button>
+          </div>
         </div>
         <div class="cleanup-card-text">${item.suggestion}</div>
       `;

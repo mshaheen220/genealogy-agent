@@ -292,6 +292,18 @@ button:disabled {
   color: var(--color-primary);
 }
 
+/* AI Thinking Animation */
+.ai-loading em {
+  display: inline-block;
+  color: var(--text-muted);
+  animation: thinkingPulse 1.5s infinite ease-in-out;
+}
+
+@keyframes thinkingPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
 /* Styling for the new inner chat header */
 .chat-header {
   font-size: 0.75rem;
@@ -488,6 +500,10 @@ button:disabled {
 }
 .cleanup-card-header {
   display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+}
+.cleanup-actions {
+  display: flex;
+  gap: 4px;
 }
 .cleanup-date {
   font-size: 0.7rem; font-weight: 700; color: #b45309; text-transform: uppercase;

@@ -54,14 +54,14 @@ python build_sqlite.py "../$FILTERED_GED"
 echo -e "\n[4/5] (Optional) Processing Media..."
 if [ -d "../$RAW_MEDIA_DIR" ]; then
     echo "Found $RAW_MEDIA_DIR directory, running OCR..."
-    python process_media.py --data-dir "../data" --root-id "$ROOT_ID"
+    python process_media.py --root-id "$ROOT_ID"
 fi
 deactivate
 cd ..
 
 echo -e "\n[5/5] Building Vector Database..."
 cd server-node
-node build_index.js --data-dir "../data" --root-id "$ROOT_ID"
+node build_index.js --root-id "$ROOT_ID"
 cd ..
 
 echo -e "\n✅ Pipeline finished successfully! You can now start the server."

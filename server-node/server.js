@@ -105,6 +105,18 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("delete-cleanup", (id) => {
+    if (!dbSql) return;
+    try {
+      dbSql.prepare("DELETE FROM cleanup_suggestions WHERE id = ?").run(id);
+      // Emit the fresh list back to the client immediately
+      const rows = dbSql.prepare("SELECT * FROM cleanup_suggestions ORDER BY completed ASC, timestamp DESC").all();
+      socket.emit("cleanups-data", rows);
+    } catch (e) {
+      console.error("Error deleting cleanup:", e.message);
+    }
+  });
+
   socket.on("transcription", async (text) => {
     console.log(`\n🗣️  User said: "${text}"`);
     
@@ -255,10 +267,10 @@ CRITICAL RULES FOR REASONING:
 8. UNLINKED ORPHANS: Documents tagged "UNLINKED ORPHAN" or "PARTIALLY LINKED" contain people found in archival documents who are NOT YET in the family tree. If asked about missing people, list them!
 
 OUTPUT FORMAT:
-1. You MUST wrap your internal reasoning in <thinking> tags. 
+1. You MUST wrap your internal reasoning in <thinking> tags (use literal < and > characters, do not escape them).
 Inside the <thinking> tags, actively identify phonetic name matches, resolve maiden names, cross-reference spouses, and perform a dedicated "MARRIED NAME CHECK" for every single woman you plan to mention to ensure you use her husband's last name.
 2. Write your polite, conversational answer to the user.
-3. If ANY relevant data is missing, conflicting, or found in a raw document but not the main profile, add a <cleanup> tag at the VERY END. If suggesting to add facts, YOU MUST INCLUDE THE EXACT DATA VALUES (e.g., "<cleanup>Add Michael's military service dates (Sep 27, 1945 - Feb 18, 1947) and MOS (Cook 060) from his Separation Record to his Ancestry.com profile.</cleanup>"). DO NOT suggest finding death records for people who are alive!
+3. If ANY relevant data is missing, conflicting, or found in a raw document but not the main profile, add a <cleanup task_id="unique_topic"> tag at the VERY END. The task_id MUST be a short, unique snake_case identifier combining the person's name and the missing fact (e.g., <cleanup task_id="michael_behun_military_service">). If suggesting to add facts, YOU MUST INCLUDE THE EXACT DATA VALUES (e.g., "<cleanup task_id="michael_behun_military_service">Add Michael's military service dates...</cleanup>"). DO NOT suggest finding death records for people who are alive!
 
 If the answer is completely missing after reasoning, say EXACTLY: "I don't know based on the family tree data."
 
@@ -271,12 +283,26 @@ FAMILY TREE DATA:\n${contextText}`),
       console.log(`💡 Raw AI Output:\n${rawContent}`);
       
       // Remove thinking block first so we don't accidentally extract <cleanup> tags from the AI's internal monologue!
-      let cleanContent = rawContent.replace(/<thinking>[\s\S]*?<\/thinking>\n*/gi, '');
+      let cleanContent = rawContent.replace(/(?:<|&lt;)thinking(?:>|&gt;)[\s\S]*?(?:<|&lt;)\/thinking(?:>|&gt;)\n*/gi, '');
       
-      const cleanupMatch = cleanContent.match(/<cleanup>([\s\S]*?)<\/cleanup>/i);
-      const cleanupText = cleanupMatch ? cleanupMatch[1].trim() : null;
+      // Remove any leftover markdown formatting blocks if the AI wrapped its entire response
+      cleanContent = cleanContent.replace(/^```[a-z]*\n?/gi, '').replace(/```$/gi, '').trim();
       
-      cleanContent = cleanContent.replace(/<cleanup>[\s\S]*?<\/cleanup>\n*/gi, '').trim();
+      let cleanupTaskId = null;
+      let cleanupText = null;
+      
+      const cleanupMatchWithId = cleanContent.match(/(?:<|&lt;)cleanup\s+task_id=(?:'|"|&quot;)?([^"'>&]+)(?:'|"|&quot;)?(?:>|&gt;)([\s\S]*?)(?:<|&lt;)\/cleanup(?:>|&gt;)/i);
+      const cleanupMatchFallback = cleanContent.match(/(?:<|&lt;)cleanup(?:>|&gt;)([\s\S]*?)(?:<|&lt;)\/cleanup(?:>|&gt;)/i);
+      
+      if (cleanupMatchWithId) {
+        cleanupTaskId = cleanupMatchWithId[1].trim().toLowerCase();
+        cleanupText = cleanupMatchWithId[2].trim();
+      } else if (cleanupMatchFallback) {
+        cleanupText = cleanupMatchFallback[1].trim();
+        cleanupTaskId = cleanupText.substring(0, 30).toLowerCase().replace(/[^a-z0-9]/g, '_');
+      }
+      
+      cleanContent = cleanContent.replace(/(?:<|&lt;)cleanup[\s\S]*?(?:<|&lt;)\/cleanup(?:>|&gt;)\n*/gi, '').trim();
       
       // Convert Markdown bold to HTML bold so it renders beautifully in the Web UI
       const formattedContent = cleanContent.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
@@ -285,10 +311,10 @@ FAMILY TREE DATA:\n${contextText}`),
       if (cleanupText) {
         // Save the suggestion persistently to the SQLite database
         try {
-          const existing = dbSql.prepare("SELECT id FROM cleanup_suggestions WHERE suggestion = ? LIMIT 1").get(cleanupText);
+          const existing = dbSql.prepare("SELECT id FROM cleanup_suggestions WHERE task_id = ? OR suggestion = ? LIMIT 1").get(cleanupTaskId, cleanupText);
           if (!existing) {
-            const insertStmt = dbSql.prepare("INSERT INTO cleanup_suggestions (timestamp, suggestion) VALUES (?, ?)");
-            insertStmt.run(new Date().toISOString(), cleanupText);
+            const insertStmt = dbSql.prepare("INSERT INTO cleanup_suggestions (timestamp, suggestion, task_id) VALUES (?, ?, ?)");
+            insertStmt.run(new Date().toISOString(), cleanupText, cleanupTaskId);
           }
         } catch (e) {
           console.error("Error saving cleanup suggestion to database:", e.message);
